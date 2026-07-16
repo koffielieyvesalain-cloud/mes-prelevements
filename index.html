@@ -1166,10 +1166,11 @@
   }
   function majBadgeVital() {
     var t = totalMois(auj.getFullYear(), auj.getMonth()).total;
-    var txt = '💚 ' + fmtMontant(t) + ' / mois';
+    var nomMois = auj.toLocaleDateString('fr-FR', { month: 'long' });
+    var txt = '💚 ' + fmtMontant(t) + ' en ' + nomMois;
     document.getElementById('badgeVital').textContent = txt;
     document.getElementById('badgeVitalFixe').textContent = txt;
-    document.getElementById('badgeVital').title = 'Il te faut ' + fmtMontant(t) + ' ce mois-ci pour couvrir tous tes prélèvements';
+    document.getElementById('badgeVital').title = 'Il te faut ' + fmtMontant(t) + ' en ' + nomMois + ' pour couvrir tous tes prélèvements';
   }
   window.addEventListener('scroll', function () {
     document.getElementById('badgeVitalFixe').classList.toggle('visible', window.scrollY > 130);
