@@ -181,6 +181,12 @@
   .comp-ligne { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; gap: 8px; }
   .comp-ligne + .comp-ligne { border-top: 1px solid var(--bordure); }
   .comp-ligne .avant { color: var(--texte-3); font-size: 12.5px; text-decoration: line-through; margin-right: 6px; }
+  .jour-mvt {
+    width: 34px; height: 34px; border-radius: 11px; flex: none;
+    background: linear-gradient(135deg, #f3ece4, #ede2d6);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13.5px; color: var(--g2);
+  }
 
   .titre-carte { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; margin-bottom: 10px; letter-spacing: -.01em; }
   .titre-carte .ico-carte {
@@ -430,25 +436,33 @@
 <div class="modale" id="modaleDette">
   <div class="contenu">
     <div class="poignee"></div>
-    <h2 id="titreModaleDette">Ajouter une dette</h2>
+    <h2 id="titreModaleDette">Ajouter un mouvement</h2>
+    <div class="form-groupe">
+      <label for="dType">Type de mouvement</label>
+      <select id="dType">
+        <option value="solde">🏦 Définir le solde de la carte</option>
+        <option value="remb">💸 Remboursement (ma dette diminue)</option>
+        <option value="achat">🛍️ Achat / frais (ma dette augmente)</option>
+      </select>
+    </div>
     <div class="form-groupe">
       <label for="dCarte">Carte de crédit</label>
-      <input id="dCarte" list="listeCartes" placeholder="Ex : Visa, Mastercard, Carte magasin…">
+      <input id="dCarte" list="listeCartes" placeholder="Ex : Visa, Mastercard, RBC…">
       <datalist id="listeCartes"></datalist>
     </div>
     <div class="form-groupe">
-      <label for="dMois">Mois concerné</label>
-      <input id="dMois" type="month">
+      <label for="dDate">Date du mouvement</label>
+      <input id="dDate" type="date">
     </div>
     <div class="form-groupe">
-      <label for="dMontant">Montant de la dette ($)</label>
-      <input id="dMontant" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Ex : 15000">
-      <p class="aide">Saisis le solde de la carte à la fin du mois. Si une entrée existe déjà pour cette carte et ce mois, elle sera remplacée.</p>
+      <label for="dMontant">Montant ($)</label>
+      <input id="dMontant" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Ex : 500">
+      <p class="aide" id="aideMontantDette">Le solde total de la carte à cette date.</p>
     </div>
     <div class="form-groupe">
       <label for="dLimite">Limite de la carte ($) — facultatif</label>
       <input id="dLimite" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Ex : 23000">
-      <p class="aide">La limite est mémorisée pour cette carte et s'applique à tous les mois. Ex : RBC → 15 000 $ sur 23 000 $.</p>
+      <p class="aide">La limite est mémorisée pour cette carte. Ex : RBC → 15 000 $ sur 23 000 $.</p>
     </div>
     <button class="btn" id="btnEnregistrerDette">Enregistrer</button>
     <button class="btn btn-sec" id="btnAnnulerDette">Annuler</button>
@@ -481,6 +495,12 @@
 
   var CLE_FAITS = 'mes-prelevements-faits';
   var CLE_DETTES = 'mes-dettes-v1';
+  var CLE_DETTES2 = 'mes-dettes-v2';
+  var TYPES_MVT = {
+    solde: { nom: 'Solde défini', emoji: '🏦' },
+    remb:  { nom: 'Remboursement', emoji: '💸' },
+    achat: { nom: 'Achat / frais', emoji: '🛍️' }
+  };
   var etat = {
     paiements: charger(),
     faits: chargerFaits(),
@@ -491,10 +511,23 @@
     editionDetteId: null
   };
   function chargerDettes() {
-    try { return JSON.parse(localStorage.getItem(CLE_DETTES)) || []; }
-    catch (e) { return []; }
+    try {
+      var v2 = JSON.parse(localStorage.getItem(CLE_DETTES2));
+      if (v2) return v2;
+    } catch (e) {}
+    /* migration : ancien format = un solde par carte et par mois */
+    try {
+      var v1 = JSON.parse(localStorage.getItem(CLE_DETTES)) || [];
+      var mig = v1.map(function (x) {
+        var t = x.mois.split('-');
+        var fin = new Date(Number(t[0]), Number(t[1]), 0).getDate();
+        return { id: x.id, carte: x.carte, date: x.mois + '-' + String(fin).padStart(2, '0'), type: 'solde', montant: x.montant };
+      });
+      if (mig.length) localStorage.setItem(CLE_DETTES2, JSON.stringify(mig));
+      return mig;
+    } catch (e) { return []; }
   }
-  function sauverDettes() { localStorage.setItem(CLE_DETTES, JSON.stringify(etat.dettes)); }
+  function sauverDettes() { localStorage.setItem(CLE_DETTES2, JSON.stringify(etat.dettes)); }
   var CLE_LIMITES = 'mes-dettes-limites';
   etat.limites = (function () {
     try { return JSON.parse(localStorage.getItem(CLE_LIMITES)) || {}; }
@@ -544,14 +577,49 @@
     n = Number(n);
     return n >= 1000 ? (Math.round(n / 100) / 10).toLocaleString('fr-FR') + 'k' : String(Math.round(n));
   }
-  function moisDettes() {
-    var s = {};
-    etat.dettes.forEach(function (x) { s[x.mois] = 1; });
-    return Object.keys(s).sort();
+  function ordreType(m) { return m.type === 'solde' ? 0 : 1; }
+  function cartesDettes() {
+    var vues = {}, liste = [];
+    etat.dettes.forEach(function (m) {
+      var k = m.carte.toLowerCase().trim();
+      if (!vues[k]) { vues[k] = 1; liste.push(m.carte); }
+    });
+    return liste.sort(function (a, b) { return a.localeCompare(b); });
   }
-  function totalDettesMois(m) {
-    return etat.dettes.filter(function (x) { return x.mois === m; })
-      .reduce(function (s, x) { return s + Number(x.montant); }, 0);
+  function soldeCarteAu(carte, iso) {
+    var k = String(carte).toLowerCase().trim();
+    var ms = etat.dettes.filter(function (m) { return m.carte.toLowerCase().trim() === k && m.date <= iso; })
+      .sort(function (a, b) { return a.date.localeCompare(b.date) || (ordreType(a) - ordreType(b)); });
+    var s = 0;
+    ms.forEach(function (m) {
+      if (m.type === 'solde') s = Number(m.montant);
+      else if (m.type === 'remb') s -= Number(m.montant);
+      else s += Number(m.montant);
+    });
+    return s;
+  }
+  function totalDettesAu(iso) {
+    return cartesDettes().reduce(function (t, c) { return t + soldeCarteAu(c, iso); }, 0);
+  }
+  function finMoisIso(a, m) {
+    return a + '-' + String(m + 1).padStart(2, '0') + '-' + String(joursDansMois(a, m)).padStart(2, '0');
+  }
+  function moisGraf() {
+    if (etat.dettes.length === 0) return [];
+    var premier = etat.dettes.reduce(function (p, m) { return m.date < p ? m.date : p; }, '9999').slice(0, 7);
+    var t = premier.split('-');
+    var d = new Date(Number(t[0]), Number(t[1]) - 1, 1);
+    var fin = new Date(auj.getFullYear(), auj.getMonth(), 1);
+    var liste = [];
+    while (d.getTime() <= fin.getTime() && liste.length < 60) {
+      liste.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+      d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    }
+    return liste;
+  }
+  function totalFinMois(mois) {
+    var t = mois.split('-');
+    return totalDettesAu(finMoisIso(Number(t[0]), Number(t[1]) - 1));
   }
   function joursDansMois(a, m) { return new Date(a, m + 1, 0).getDate(); }
   function memeJour(a, b) { return a.getTime() === b.getTime(); }
@@ -623,27 +691,26 @@
       return;
     }
     if (etat.vue === 'dettes') {
-      var ms = moisDettes();
-      if (ms.length === 0) {
+      if (etat.dettes.length === 0) {
         lib.textContent = 'Dettes de cartes de crédit';
         chi.textContent = fmtMontant(0);
-        note.textContent = 'Aucune dette enregistrée — appuie sur + pour commencer';
+        note.textContent = 'Aucun mouvement enregistré — appuie sur + pour commencer';
         return;
       }
-      var cur = ms[ms.length - 1], tot = totalDettesMois(cur);
+      var tot = totalDettesAu(isoDate(auj));
       var limTot = 0;
-      etat.dettes.forEach(function (x) {
-        if (x.mois === cur) { var l = limiteDe(x.carte); if (l) limTot += l; }
-      });
-      lib.textContent = 'Dettes — ' + fmtMois(cur);
+      cartesDettes().forEach(function (c) { var l = limiteDe(c); if (l) limTot += l; });
+      lib.textContent = 'Mes dettes aujourd\'hui';
       chi.textContent = fmtMontant(tot) + (limTot > 0 ? ' / ' + fmtMontant(limTot) : '');
-      var pctH = limTot > 0 ? Math.min(100, Math.round(tot / limTot * 100)) : 0;
-      var suffixe = limTot > 0 ? ' · ' + pctH + ' % des limites' + (pctH > 30 ? ' ⚠️' : '') : '';
-      if (ms.length >= 2) {
-        var prev = ms[ms.length - 2], diffD = tot - totalDettesMois(prev);
-        note.textContent = (diffD > 0 ? '▲ +' + fmtMontant(diffD) + ' vs ' + fmtMois(prev)
-          : diffD < 0 ? '▼ −' + fmtMontant(Math.abs(diffD)) + ' vs ' + fmtMois(prev) + ' 👏'
-          : '= Identique à ' + fmtMois(prev)) + suffixe;
+      var pctH = limTot > 0 ? Math.round(tot / limTot * 100) : 0;
+      var suffixe = limTot > 0 ? ' · ' + pctH + ' % des limites' + (tot > limTot * 0.3 ? ' ⚠️' : '') : '';
+      var mp = new Date(auj.getFullYear(), auj.getMonth() - 1, 1);
+      var mpIso = mp.getFullYear() + '-' + String(mp.getMonth() + 1).padStart(2, '0');
+      if (moisGraf().length >= 2) {
+        var diffD = tot - totalDettesAu(finMoisIso(mp.getFullYear(), mp.getMonth()));
+        note.textContent = (diffD > 0 ? '▲ +' + fmtMontant(diffD) + ' depuis fin ' + fmtMoisCourt(mpIso)
+          : diffD < 0 ? '▼ −' + fmtMontant(Math.abs(diffD)) + ' depuis fin ' + fmtMoisCourt(mpIso) + ' 👏'
+          : '= Stable depuis fin ' + fmtMoisCourt(mpIso)) + suffixe;
       } else {
         note.textContent = 'Premier mois enregistré' + suffixe;
       }
@@ -872,65 +939,99 @@
   }
 
   /* ---------- VUE DETTES ---------- */
+  function ligneMvt(m, avecActions) {
+    var jour = Number(m.date.slice(8, 10));
+    var t = TYPES_MVT[m.type] || TYPES_MVT.solde;
+    var mnt = m.type === 'remb'
+      ? '<span class="montant" style="color:var(--vert)">−' + fmtMontant(m.montant) + '</span>'
+      : m.type === 'achat'
+      ? '<span class="montant" style="color:var(--rouge)">+' + fmtMontant(m.montant) + '</span>'
+      : '<span class="montant">= ' + fmtMontant(m.montant) + '</span>';
+    return '<div class="ligne"><div class="jour-mvt">' + jour + '</div>' +
+      '<div class="infos"><div class="nom">' + t.emoji + ' ' + echap(m.carte) + '</div>' +
+      '<div class="compte">' + t.nom + ' · ' + dateLocale(m.date).toLocaleDateString('fr-FR') + '</div></div>' +
+      mnt +
+      (avecActions ? '<div class="actions"><button data-dmodif="' + m.id + '" title="Modifier">✏️</button>' +
+        '<button data-dsuppr="' + m.id + '" title="Supprimer">🗑️</button></div>' : '') +
+      '</div>';
+  }
+
   function rendreDettes() {
     var conteneur = document.getElementById('dettesContenu');
-    var ms = moisDettes();
-    if (ms.length === 0) {
-      conteneur.innerHTML = '<div class="vide"><span class="emoji">💳</span>Aucune dette enregistrée.<br>Appuie sur <b>+</b> pour saisir la dette<br>d\'une carte pour un mois donné.</div>';
+    if (etat.dettes.length === 0) {
+      conteneur.innerHTML = '<div class="vide"><span class="emoji">💳</span>Aucun mouvement enregistré.<br>Appuie sur <b>+</b> pour définir le solde d\'une carte,<br>puis enregistre tes remboursements et achats au fil des jours.</div>';
       return;
     }
     var html = '';
+    var aujIso = isoDate(auj);
+    var moisCur = aujIso.slice(0, 7);
+    var mp = new Date(auj.getFullYear(), auj.getMonth() - 1, 1);
+    var finPrec = finMoisIso(mp.getFullYear(), mp.getMonth());
 
-    /* mes cartes : dette sur limite + total, pour le mois le plus récent */
-    var curM = ms[ms.length - 1];
-    var entreesCur = etat.dettes.filter(function (x) { return x.mois === curM; })
-      .sort(function (x, y) { return x.carte.localeCompare(y.carte); });
+    /* --- une bulle par carte --- */
     var totCur = 0, totLim = 0;
-    html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">💳</span>Mes cartes — ' + fmtMois(curM) + '</div>';
-    entreesCur.forEach(function (x) {
-      var lim = limiteDe(x.carte);
-      totCur += Number(x.montant);
+    cartesDettes().forEach(function (c) {
+      var solde = soldeCarteAu(c, aujIso);
+      var avant = soldeCarteAu(c, finPrec);
+      var diff = solde - avant;
+      var lim = limiteDe(c);
+      var coul = couleurDe(c);
+      totCur += solde;
       if (lim) totLim += lim;
-      var pct = lim ? Math.min(100, Math.round(x.montant / lim * 100)) : 0;
-      var coul = lim ? couleurUtil(pct) : 'var(--texte)';
-      html += '<div style="padding:8px 0">' +
-        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">' +
-        '<span class="nom">💳 ' + echap(x.carte) + '</span>' +
-        '<span style="font-weight:800;white-space:nowrap;color:' + coul + '">' + fmtMontant(x.montant) +
-        (lim ? ' <span style="font-weight:600;color:var(--texte-3)">sur ' + fmtMontant(lim) + '</span>' : '') +
-        '</span></div>' +
-        (lim
-          ? '<div class="jauge" style="margin-top:7px"><div style="width:' + pct + '%;background:' + coul + '"></div><span class="seuil-30"></span></div>' +
-            '<div class="compte" style="margin-top:4px">Utilisation : ' + pct + ' %' + (pct >= 90 ? ' ⚠️' : '') + '</div>' +
-            (x.montant > lim * 0.3
-              ? '<span class="tag-30">⚠️ 30 % de la limite dépassés (+' + fmtMontant(Math.round(x.montant - lim * 0.3)) + ')</span>'
-              : '<span class="tag-30 ok">✓ Sous les 30 % recommandés</span>')
-          : '<div class="compte" style="margin-top:4px">Limite non définie — modifie la dette ✏️ pour l\'ajouter</div>') +
+      var pct = lim ? Math.min(100, Math.max(0, Math.round(solde / lim * 100))) : 0;
+      var coulU = lim ? couleurUtil(pct) : 'var(--texte)';
+      var delta = diff > 0 ? '<span class="delta hausse">▲ +' + fmtMontant(diff) + ' ce mois</span>'
+        : diff < 0 ? '<span class="delta baisse">▼ −' + fmtMontant(Math.abs(diff)) + ' ce mois</span>'
+        : '<span class="delta" style="color:var(--texte-3)">= stable ce mois</span>';
+      var mvts = etat.dettes.filter(function (m) {
+        return m.carte.toLowerCase().trim() === c.toLowerCase().trim() && m.date.slice(0, 7) === moisCur;
+      }).sort(function (a, b) { return b.date.localeCompare(a.date); });
+      var mvtsHtml = '';
+      mvts.slice(0, 5).forEach(function (m) { mvtsHtml += ligneMvt(m, true); });
+      html += '<div class="carte compte-carte"><div class="barre" style="background:' + coul + '"></div>' +
+        '<div class="tete"><div class="nom-compte">' +
+        '<div class="avatar" style="width:36px;height:36px;font-size:14px;background:linear-gradient(135deg,' + coul + ',' + coul + 'cc)">💳</div>' +
+        '<span class="txt">' + echap(c) + '</span></div>' +
+        '<div class="total-compte" style="color:' + coulU + '">' + fmtMontant(solde) +
+        (lim ? ' <span style="font-weight:600;font-size:12px;color:var(--texte-3)">sur ' + fmtMontant(lim) + '</span>' : '') +
+        '</div></div>' +
+        (lim ? '<div class="jauge"><div style="width:' + pct + '%;background:' + coulU + '"></div><span class="seuil-30"></span></div>' : '') +
+        '<div class="detail"><span>' + (lim ? 'Utilisation : ' + pct + ' %' : 'Limite non définie') + '</span>' + delta + '</div>' +
+        (lim ? (solde > lim * 0.3
+          ? '<span class="tag-30">⚠️ 30 % de la limite dépassés (+' + fmtMontant(Math.round(solde - lim * 0.3)) + ')</span>'
+          : '<span class="tag-30 ok">✓ Sous les 30 % recommandés</span>') : '') +
+        (mvtsHtml ? '<div class="lignes" style="margin-top:10px"><div class="sous-carte" style="margin:0 0 2px">Mouvements de ' + fmtMoisCourt(moisCur) + '</div>' + mvtsHtml + '</div>' : '') +
         '</div>';
     });
-    var pctT = totLim > 0 ? Math.min(100, Math.round(totCur / totLim * 100)) : 0;
-    html += '<div style="border-top:2px solid var(--bordure);padding-top:10px;margin-top:4px">' +
+
+    /* --- bulle total --- */
+    var pctT = totLim > 0 ? Math.min(100, Math.max(0, Math.round(totCur / totLim * 100))) : 0;
+    var totPrev = totalDettesAu(finPrec);
+    var tDiff = totCur - totPrev;
+    var deltaT = tDiff > 0 ? '<span class="delta hausse">▲ +' + fmtMontant(tDiff) + ' ce mois</span>'
+      : tDiff < 0 ? '<span class="delta baisse">▼ −' + fmtMontant(Math.abs(tDiff)) + ' ce mois</span>'
+      : '<span class="delta" style="color:var(--texte-3)">= stable ce mois</span>';
+    html += '<div class="carte">' +
       '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">' +
       '<span class="nom"><b>Total de mes dettes</b></span>' +
-      '<span style="font-weight:800;font-size:16px">' + fmtMontant(totCur) +
+      '<span style="font-weight:800;font-size:17px">' + fmtMontant(totCur) +
       (totLim > 0 ? ' <span style="font-weight:600;font-size:12.5px;color:var(--texte-3)">sur ' + fmtMontant(totLim) + '</span>' : '') +
       '</span></div>' +
-      (totLim > 0
-        ? '<div class="jauge" style="margin-top:7px"><div style="width:' + pctT + '%;background:' + couleurUtil(pctT) + '"></div><span class="seuil-30"></span></div>' +
-          '<div class="compte" style="margin-top:4px">Utilisation globale : ' + pctT + ' % de mes limites</div>' +
-          (totCur > totLim * 0.3
-            ? '<span class="tag-30">⚠️ 30 % du total des limites dépassés (+' + fmtMontant(Math.round(totCur - totLim * 0.3)) + ')</span>'
-            : '<span class="tag-30 ok">✓ Sous les 30 % recommandés</span>')
-        : '') +
-      '</div></div>';
+      (totLim > 0 ? '<div class="jauge"><div style="width:' + pctT + '%;background:' + couleurUtil(pctT) + '"></div><span class="seuil-30"></span></div>' +
+        '<div class="detail"><span>Utilisation globale : ' + pctT + ' %</span>' + deltaT + '</div>' +
+        (totCur > totLim * 0.3
+          ? '<span class="tag-30">⚠️ 30 % du total des limites dépassés (+' + fmtMontant(Math.round(totCur - totLim * 0.3)) + ')</span>'
+          : '<span class="tag-30 ok">✓ Sous les 30 % recommandés</span>')
+        : '<div class="detail"><span></span>' + deltaT + '</div>') +
+      '</div>';
 
-    /* graphique d'évolution */
-    var derniers = ms.slice(-8);
-    var totaux = derniers.map(totalDettesMois);
+    /* --- graphique par mois --- */
+    var msG = moisGraf().slice(-8);
+    var totaux = msG.map(totalFinMois);
     var maxT = Math.max.apply(null, totaux);
     html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">📉</span>Évolution de mes dettes</div>' +
-      '<div class="sous-carte">Total de toutes les cartes, mois par mois</div><div class="graf">';
-    derniers.forEach(function (m2, i) {
+      '<div class="sous-carte">Solde total de toutes les cartes, en fin de mois</div><div class="graf">';
+    msG.forEach(function (m2, i) {
       var pct = maxT > 0 ? Math.max(3, Math.round(totaux[i] / maxT * 100)) : 3;
       html += '<div class="col' + (totaux[i] === maxT && maxT > 0 ? ' max' : '') + '">' +
         '<span class="vm">' + fmtCourt(totaux[i]) + '</span>' +
@@ -939,49 +1040,19 @@
     });
     html += '</div></div>';
 
-    /* comparaison mois passé vs mois en cours */
-    var cur = ms[ms.length - 1];
-    if (ms.length >= 2) {
-      var prev = ms[ms.length - 2];
-      html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">⚖️</span>' +
-        fmtMois(prev) + ' → ' + fmtMois(cur) + '</div>';
-      var cartes = {};
-      etat.dettes.forEach(function (x) { if (x.mois === cur || x.mois === prev) cartes[x.carte] = 1; });
-      Object.keys(cartes).sort().forEach(function (c) {
-        var av = etat.dettes.filter(function (x) { return x.mois === prev && x.carte === c; })
-          .reduce(function (s, x) { return s + Number(x.montant); }, 0);
-        var ap = etat.dettes.filter(function (x) { return x.mois === cur && x.carte === c; })
-          .reduce(function (s, x) { return s + Number(x.montant); }, 0);
-        var diff = ap - av;
-        var delta = diff > 0 ? '<span class="delta hausse">▲ +' + fmtMontant(diff) + '</span>'
-          : diff < 0 ? '<span class="delta baisse">▼ −' + fmtMontant(Math.abs(diff)) + '</span>'
-          : '<span class="delta">=</span>';
-        html += '<div class="comp-ligne"><div class="infos"><div class="nom">💳 ' + echap(c) + '</div>' +
-          '<div class="compte"><span class="avant">' + fmtMontant(av) + '</span> → <b>' + fmtMontant(ap) + '</b></div></div>' +
-          delta + '</div>';
-      });
-      var tAv = totalDettesMois(prev), tAp = totalDettesMois(cur), tDiff = tAp - tAv;
-      var deltaT = tDiff > 0 ? '<span class="delta hausse">▲ +' + fmtMontant(tDiff) + '</span>'
-        : tDiff < 0 ? '<span class="delta baisse">▼ −' + fmtMontant(Math.abs(tDiff)) + '</span>'
-        : '<span class="delta">=</span>';
-      html += '<div class="comp-ligne"><div class="infos"><div class="nom"><b>Total</b></div>' +
-        '<div class="compte"><span class="avant">' + fmtMontant(tAv) + '</span> → <b>' + fmtMontant(tAp) + '</b></div></div>' +
-        deltaT + '</div></div>';
-    }
-
-    /* détail par mois (du plus récent au plus ancien) */
-    ms.slice().reverse().forEach(function (m2) {
-      html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">🗓️</span>' + fmtMois(m2) +
-        '<span style="margin-left:auto">' + fmtMontant(totalDettesMois(m2)) + '</span></div>';
-      etat.dettes.filter(function (x) { return x.mois === m2; })
-        .sort(function (x, y) { return x.carte.localeCompare(y.carte); })
-        .forEach(function (x) {
-          html += '<div class="comp-ligne"><div class="infos"><div class="nom">💳 ' + echap(x.carte) + '</div></div>' +
-            '<div style="display:flex;align-items:center;gap:10px"><span class="montant">' + fmtMontant(x.montant) + '</span>' +
-            '<div class="actions"><button data-dmodif="' + x.id + '" title="Modifier">✏️</button>' +
-            '<button data-dsuppr="' + x.id + '" title="Supprimer">🗑️</button></div></div></div>';
-        });
-      html += '</div>';
+    /* --- historique des mouvements, par mois --- */
+    var parMoisMvt = {};
+    etat.dettes.forEach(function (m) {
+      var k = m.date.slice(0, 7);
+      (parMoisMvt[k] = parMoisMvt[k] || []).push(m);
+    });
+    Object.keys(parMoisMvt).sort().reverse().forEach(function (k) {
+      var lignes = parMoisMvt[k].sort(function (a, b) { return b.date.localeCompare(a.date); });
+      html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">🗓️</span>' + fmtMois(k) +
+        '<span style="margin-left:auto;font-size:12px;font-weight:600;color:var(--texte-3)">' + lignes.length + ' mouvement' + (lignes.length > 1 ? 's' : '') + ' · fin de mois : ' + fmtMontant(totalFinMois(k)) + '</span></div>' +
+        '<div class="lignes" style="margin-top:0">';
+      lignes.forEach(function (m) { html += ligneMvt(m, true); });
+      html += '</div></div>';
     });
 
     conteneur.innerHTML = html;
@@ -1019,7 +1090,7 @@
     jours: 'Prélèvements des 60 prochains jours',
     comptes: 'Total à prélever par compte bancaire',
     stats: 'Mes statistiques de dépenses',
-    dettes: 'Mes dettes de cartes de crédit — suivi manuel',
+    dettes: 'Soldes, remboursements et achats de mes cartes',
     paiements: 'Tous mes paiements enregistrés'
   };
   function afficherVue(nom) {
@@ -1109,14 +1180,24 @@
 
   /* ---------- MODALE DETTE ---------- */
   var modaleDette = document.getElementById('modaleDette');
-  function moisIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+  var AIDES_MVT = {
+    solde: 'Le solde total de la carte à cette date (remplace le solde précédent).',
+    remb: 'Le montant que tu as remboursé — ta dette diminue d\'autant.',
+    achat: 'Le montant de l\'achat ou des frais — ta dette augmente d\'autant.'
+  };
+  function majAideMvt() {
+    document.getElementById('aideMontantDette').textContent = AIDES_MVT[document.getElementById('dType').value];
+  }
+  document.getElementById('dType').addEventListener('change', majAideMvt);
   function ouvrirModaleDette(x) {
     etat.editionDetteId = x ? x.id : null;
-    document.getElementById('titreModaleDette').textContent = x ? 'Modifier la dette' : 'Ajouter une dette';
+    document.getElementById('titreModaleDette').textContent = x ? 'Modifier le mouvement' : 'Ajouter un mouvement';
+    document.getElementById('dType').value = (x && TYPES_MVT[x.type]) ? x.type : 'solde';
     document.getElementById('dCarte').value = x ? x.carte : '';
-    document.getElementById('dMois').value = x ? x.mois : moisIso(auj);
+    document.getElementById('dDate').value = x ? x.date : isoDate(auj);
     document.getElementById('dMontant').value = x ? x.montant : '';
     document.getElementById('dLimite').value = (x && limiteDe(x.carte)) ? limiteDe(x.carte) : '';
+    majAideMvt();
     var dl = document.getElementById('listeCartes'), cs = {};
     etat.dettes.forEach(function (y) { cs[y.carte] = 1; });
     dl.innerHTML = Object.keys(cs).sort().map(function (c) { return '<option value="' + echap(c) + '">'; }).join('');
@@ -1131,23 +1212,20 @@
   modaleDette.addEventListener('click', function (e) { if (e.target === modaleDette) fermerModaleDette(); });
 
   document.getElementById('btnEnregistrerDette').addEventListener('click', function () {
+    var type = document.getElementById('dType').value;
     var carte = document.getElementById('dCarte').value.trim();
-    var mois = document.getElementById('dMois').value;
+    var date = document.getElementById('dDate').value;
     var montant = parseFloat(document.getElementById('dMontant').value);
     var limite = parseFloat(document.getElementById('dLimite').value);
     if (!carte) return alert('Indique le nom de la carte.');
-    if (!mois) return alert('Choisis le mois concerné.');
+    if (!date) return alert('Choisis la date du mouvement.');
     if (!(montant >= 0)) return alert('Indique un montant valide (0 ou plus).');
     if (limite > 0) { etat.limites[carte.toLowerCase()] = limite; sauverLimites(); }
+    var mvt = { id: etat.editionDetteId || uid(), carte: carte, date: date, type: type, montant: montant };
     if (etat.editionDetteId) {
-      etat.dettes = etat.dettes.map(function (y) {
-        return y.id === etat.editionDetteId ? { id: y.id, carte: carte, mois: mois, montant: montant } : y;
-      });
+      etat.dettes = etat.dettes.map(function (y) { return y.id === mvt.id ? mvt : y; });
     } else {
-      etat.dettes = etat.dettes.filter(function (y) {
-        return !(y.carte.toLowerCase() === carte.toLowerCase() && y.mois === mois);
-      });
-      etat.dettes.push({ id: uid(), carte: carte, mois: mois, montant: montant });
+      etat.dettes.push(mvt);
     }
     sauverDettes(); fermerModaleDette(); toutRendre();
   });
@@ -1161,7 +1239,7 @@
     }
     if (b.dataset.dsuppr) {
       var q = etat.dettes.find(function (y) { return y.id === b.dataset.dsuppr; });
-      if (q && confirm('Supprimer la dette « ' + q.carte + ' — ' + fmtMois(q.mois) + ' » ?')) {
+      if (q && confirm('Supprimer ce mouvement ?\n' + (TYPES_MVT[q.type] || {}).nom + ' — ' + q.carte + ' — ' + dateLocale(q.date).toLocaleDateString('fr-FR'))) {
         etat.dettes = etat.dettes.filter(function (y) { return y.id !== q.id; });
         sauverDettes(); toutRendre();
       }
