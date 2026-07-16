@@ -187,6 +187,10 @@
     display: flex; align-items: center; justify-content: center;
     font-weight: 800; font-size: 13.5px; color: var(--g2);
   }
+  .report-info {
+    font-size: 11.5px; color: var(--texte-2); margin-top: 8px;
+    background: var(--fond); padding: 7px 10px; border-radius: 10px; line-height: 1.5;
+  }
 
   .titre-carte { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; margin-bottom: 10px; letter-spacing: -.01em; }
   .titre-carte .ico-carte {
@@ -464,6 +468,11 @@
       <input id="dLimite" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Ex : 23000">
       <p class="aide">La limite est mémorisée pour cette carte. Ex : RBC → 15 000 $ sur 23 000 $.</p>
     </div>
+    <div class="form-groupe">
+      <label for="dReport">Jour du report au dossier de crédit (1 à 31) — facultatif</label>
+      <input id="dReport" type="number" inputmode="numeric" min="1" max="31" placeholder="Ex : 15">
+      <p class="aide">La date à laquelle la banque déclare le solde de cette carte à ton dossier de crédit (Equifax / TransUnion). Mémorisée pour cette carte — rembourse avant cette date pour que le solde déclaré soit bas.</p>
+    </div>
     <button class="btn" id="btnEnregistrerDette">Enregistrer</button>
     <button class="btn btn-sec" id="btnAnnulerDette">Annuler</button>
   </div>
@@ -537,6 +546,26 @@
   function limiteDe(carte) {
     var v = etat.limites[String(carte).toLowerCase().trim()];
     return v > 0 ? Number(v) : null;
+  }
+  var CLE_REPORTS = 'mes-dettes-reports';
+  etat.reports = (function () {
+    try { return JSON.parse(localStorage.getItem(CLE_REPORTS)) || {}; }
+    catch (e) { return {}; }
+  })();
+  function sauverReports() { localStorage.setItem(CLE_REPORTS, JSON.stringify(etat.reports)); }
+  function jourReportDe(carte) {
+    var v = etat.reports[String(carte).toLowerCase().trim()];
+    return (v >= 1 && v <= 31) ? Number(v) : null;
+  }
+  function prochainReport(jour) {
+    var eff = Math.min(jour, joursDansMois(auj.getFullYear(), auj.getMonth()));
+    var d = new Date(auj.getFullYear(), auj.getMonth(), eff);
+    if (d.getTime() < auj.getTime()) {
+      var a2 = auj.getMonth() === 11 ? auj.getFullYear() + 1 : auj.getFullYear();
+      var m2 = (auj.getMonth() + 1) % 12;
+      d = new Date(a2, m2, Math.min(jour, joursDansMois(a2, m2)));
+    }
+    return d;
   }
   function couleurUtil(pct) {
     return pct <= 30 ? '#2e7d32' : pct <= 70 ? '#b8860b' : '#c62828';
@@ -1000,6 +1029,17 @@
         (lim ? (solde > lim * 0.3
           ? '<span class="tag-30">⚠️ 30 % de la limite dépassés (+' + fmtMontant(Math.round(solde - lim * 0.3)) + ')</span>'
           : '<span class="tag-30 ok">✓ Sous les 30 % recommandés</span>') : '') +
+        (function () {
+          var jr = jourReportDe(c);
+          if (!jr) return '';
+          var pr = prochainReport(jr);
+          var dans = Math.round((pr.getTime() - auj.getTime()) / 86400000);
+          var quand = dans === 0 ? '<b>aujourd\'hui</b>'
+            : 'le ' + pr.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) + ' (dans ' + dans + ' jour' + (dans > 1 ? 's' : '') + ')';
+          var alerte = (lim && solde > lim * 0.3 && dans <= 5)
+            ? '<br><b style="color:var(--rouge)">⚠️ Tu es au-dessus des 30 % — rembourse avant le report si possible</b>' : '';
+          return '<div class="report-info">📋 Report au dossier de crédit : le ' + jr + ' de chaque mois · prochain ' + quand + alerte + '</div>';
+        })() +
         (mvtsHtml ? '<div class="lignes" style="margin-top:10px"><div class="sous-carte" style="margin:0 0 2px">Mouvements de ' + fmtMoisCourt(moisCur) + '</div>' + mvtsHtml + '</div>' : '') +
         '</div>';
     });
@@ -1197,6 +1237,7 @@
     document.getElementById('dDate').value = x ? x.date : isoDate(auj);
     document.getElementById('dMontant').value = x ? x.montant : '';
     document.getElementById('dLimite').value = (x && limiteDe(x.carte)) ? limiteDe(x.carte) : '';
+    document.getElementById('dReport').value = (x && jourReportDe(x.carte)) ? jourReportDe(x.carte) : '';
     majAideMvt();
     var dl = document.getElementById('listeCartes'), cs = {};
     etat.dettes.forEach(function (y) { cs[y.carte] = 1; });
@@ -1207,6 +1248,8 @@
   document.getElementById('dCarte').addEventListener('input', function () {
     var l = limiteDe(this.value);
     if (l) document.getElementById('dLimite').value = l;
+    var r = jourReportDe(this.value);
+    if (r) document.getElementById('dReport').value = r;
   });
   document.getElementById('btnAnnulerDette').addEventListener('click', fermerModaleDette);
   modaleDette.addEventListener('click', function (e) { if (e.target === modaleDette) fermerModaleDette(); });
@@ -1221,6 +1264,8 @@
     if (!date) return alert('Choisis la date du mouvement.');
     if (!(montant >= 0)) return alert('Indique un montant valide (0 ou plus).');
     if (limite > 0) { etat.limites[carte.toLowerCase()] = limite; sauverLimites(); }
+    var report = parseInt(document.getElementById('dReport').value, 10);
+    if (report >= 1 && report <= 31) { etat.reports[carte.toLowerCase()] = report; sauverReports(); }
     var mvt = { id: etat.editionDetteId || uid(), carte: carte, date: date, type: type, montant: montant };
     if (etat.editionDetteId) {
       etat.dettes = etat.dettes.map(function (y) { return y.id === mvt.id ? mvt : y; });
