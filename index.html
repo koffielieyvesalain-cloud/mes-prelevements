@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1a120d">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" type="image/png" href="./icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Prélèvements">
+<title>Mes Prélèvements</title>
+<style>
+  :root {
+    color-scheme: light;
+    --g1: #1a120d; --g2: #4e342e; --g3: #8d6e63;
+    --accent: #6d4c41;
+    --fond: #f4efe9; --carte: #ffffff;
+    --texte: #241a14; --texte-2: #7d6b60; --texte-3: #a89588;
+    --bordure: #f0e9e2;
+    --rouge: #c62828; --vert: #2e7d32; --ambre: #b8860b;
+    --ombre: 0 8px 24px rgba(38,24,16,.08);
+    --rayon: 20px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    background: var(--fond); color: var(--texte);
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+
+  /* ---------- EN-TÊTE ---------- */
+  .entete {
+    background: linear-gradient(135deg, var(--g1) 0%, var(--g2) 55%, var(--g3) 100%);
+    color: #fff;
+    padding: 20px 20px 64px;
+    padding-top: calc(20px + env(safe-area-inset-top));
+    border-radius: 0 0 32px 32px;
+    position: relative; overflow: hidden;
+  }
+  .entete::before, .entete::after {
+    content: ''; position: absolute; border-radius: 50%;
+    background: rgba(255,255,255,.08);
+  }
+  .entete::before { width: 220px; height: 220px; top: -90px; right: -60px; }
+  .entete::after { width: 140px; height: 140px; bottom: -70px; left: -40px; }
+  .entete .haut { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
+  .logo {
+    width: 42px; height: 42px; border-radius: 14px;
+    background: rgba(255,255,255,.18); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+  }
+  .entete h1 { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+  .entete .sous { font-size: 12.5px; opacity: .8; margin-top: 1px; }
+
+  /* Carte héro flottante */
+  .hero {
+    background: var(--carte); border-radius: var(--rayon);
+    box-shadow: var(--ombre);
+    margin: -44px 16px 14px; padding: 18px 20px;
+    position: relative; z-index: 2;
+    max-width: 608px;
+  }
+  @media (min-width: 640px) { .hero { margin-left: auto; margin-right: auto; } }
+  .hero .libelle { font-size: 12px; font-weight: 600; color: var(--texte-3); text-transform: uppercase; letter-spacing: .06em; }
+  .hero .chiffre {
+    font-size: 30px; font-weight: 800; letter-spacing: -.03em; margin-top: 4px;
+    background: linear-gradient(135deg, var(--g1), var(--g3));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero .note { font-size: 12.5px; color: var(--texte-2); margin-top: 4px; }
+
+  main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
+
+  /* ---------- CARTES ---------- */
+  .carte {
+    background: var(--carte); border-radius: var(--rayon); padding: 16px;
+    margin-bottom: 12px; box-shadow: var(--ombre);
+    animation: entree .3s ease both;
+  }
+  @keyframes entree { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .jour-tete { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .jour-date { display: flex; align-items: center; gap: 10px; }
+  .pastille-date {
+    width: 44px; height: 44px; border-radius: 14px; flex: none;
+    background: linear-gradient(135deg, #f3ece4, #ede2d6);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .pastille-date .num { font-size: 17px; font-weight: 800; color: var(--g1); line-height: 1; }
+  .pastille-date .mois { font-size: 9.5px; font-weight: 700; color: var(--g2); text-transform: uppercase; margin-top: 1px; }
+  .pastille-date.auj { background: linear-gradient(135deg, var(--g1), var(--g2)); }
+  .pastille-date.auj .num, .pastille-date.auj .mois { color: #fff; }
+  .jour-nom { font-weight: 700; font-size: 14.5px; text-transform: capitalize; }
+  .jour-sous { font-size: 12px; color: var(--texte-3); }
+  .jour-total { font-weight: 800; font-size: 15px; color: var(--rouge); white-space: nowrap; }
+
+  .ligne { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+  .ligne + .ligne { border-top: 1px solid var(--bordure); }
+  .lignes { margin-top: 8px; }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 13px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 17px; color: #fff;
+  }
+  .infos { min-width: 0; flex: 1; }
+  .nom { font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .compte { font-size: 12px; color: var(--texte-2); margin-top: 1px; }
+  .montant { font-weight: 700; font-size: 14.5px; white-space: nowrap; }
+
+  .vide { text-align: center; color: var(--texte-2); padding: 48px 20px; font-size: 14.5px; line-height: 1.7; }
+  .vide .emoji { font-size: 44px; display: block; margin-bottom: 10px; }
+
+  /* ---------- COMPTES ---------- */
+  .nav-mois { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
+  .nav-mois button {
+    background: var(--carte); border: none; border-radius: 12px;
+    width: 40px; height: 40px; font-size: 19px; color: var(--accent);
+    cursor: pointer; box-shadow: var(--ombre);
+  }
+  .titre-mois { font-weight: 800; font-size: 16.5px; text-transform: capitalize; letter-spacing: -.01em; }
+
+  .compte-carte { position: relative; overflow: hidden; }
+  .compte-carte .barre { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; }
+  .compte-carte .tete { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .nom-compte { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .nom-compte .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .total-compte { font-weight: 800; font-size: 16.5px; white-space: nowrap; }
+  .jauge { height: 7px; background: var(--bordure); border-radius: 4px; margin-top: 12px; overflow: hidden; position: relative; }
+  .jauge > div { height: 100%; border-radius: 4px; transition: width .5s ease; }
+  .seuil-30 { position: absolute; left: 30%; top: 0; bottom: 0; width: 2px; background: var(--texte); opacity: .45; }
+  .tag-30 {
+    display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px;
+    border-radius: 8px; background: #f9e9e7; color: var(--rouge); margin-top: 5px;
+  }
+  .tag-30.ok { background: #e8f2e9; color: var(--vert); }
+  .detail { font-size: 12px; color: var(--texte-2); margin-top: 8px; display: flex; justify-content: space-between; }
+  .detail .avenir { color: var(--rouge); font-weight: 700; }
+  .detail .passe { color: var(--vert); font-weight: 600; }
+
+  /* ---------- STATS ---------- */
+  .stat-ligne { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+  .stat-ligne .lib { width: 92px; flex: none; font-size: 12.5px; font-weight: 600; color: var(--texte-2); text-transform: capitalize; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stat-ligne .barre-h { flex: 1; height: 14px; background: var(--fond); border-radius: 7px; overflow: hidden; }
+  .stat-ligne .barre-h > div { height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--g1), var(--g3)); transition: width .5s ease; min-width: 2px; }
+  .stat-ligne .val { width: 86px; flex: none; text-align: right; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+  .stat-ligne.max .lib, .stat-ligne.max .val { color: var(--rouge); }
+  .stat-ligne.max .barre-h > div { background: linear-gradient(90deg, var(--rouge), #e57373); }
+  .stat-ligne.actuel .lib { color: var(--accent); }
+  .badge {
+    display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px;
+    border-radius: 10px; background: #f9e9e7; color: var(--rouge); margin-left: 6px; vertical-align: 1px;
+  }
+  .tag-manuel {
+    display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 7px;
+    border-radius: 8px; background: #fdf3e0; color: var(--ambre); margin-left: 6px; vertical-align: 1px;
+    white-space: nowrap;
+  }
+  .btn-fait {
+    width: 28px; height: 28px; border-radius: 50%; flex: none;
+    border: 2px solid var(--texte-3); background: none; cursor: pointer;
+    font-size: 14px; line-height: 1; color: #fff; margin-left: 4px;
+    transition: all .15s;
+  }
+  .btn-fait.ok { background: var(--vert); border-color: var(--vert); }
+  .ligne.fait .nom, .ligne.fait .montant { text-decoration: line-through; opacity: .5; }
+  .ligne.fait .avatar { opacity: .5; }
+
+  /* ---------- DETTES ---------- */
+  .graf { display: flex; align-items: flex-end; gap: 6px; height: 150px; margin-top: 6px; }
+  .graf .col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .graf .vm { font-size: 10px; font-weight: 700; margin-bottom: 3px; white-space: nowrap; }
+  .graf .barre-v { width: 100%; max-width: 38px; border-radius: 8px 8px 3px 3px; background: linear-gradient(180deg, var(--g3), var(--g1)); min-height: 4px; transition: height .4s ease; }
+  .graf .col.max .barre-v { background: linear-gradient(180deg, #e57373, var(--rouge)); }
+  .graf .lm { font-size: 9.5px; color: var(--texte-3); margin-top: 5px; text-transform: capitalize; white-space: nowrap; }
+  .delta { font-size: 12px; font-weight: 800; white-space: nowrap; }
+  .delta.hausse { color: var(--rouge); }
+  .delta.baisse { color: var(--vert); }
+  .comp-ligne { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; gap: 8px; }
+  .comp-ligne + .comp-ligne { border-top: 1px solid var(--bordure); }
+  .comp-ligne .avant { color: var(--texte-3); font-size: 12.5px; text-decoration: line-through; margin-right: 6px; }
+
+  .titre-carte { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; margin-bottom: 10px; letter-spacing: -.01em; }
+  .titre-carte .ico-carte {
+    width: 30px; height: 30px; border-radius: 10px; flex: none;
+    background: linear-gradient(135deg, #f3ece4, #ede2d6);
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .sous-carte { font-size: 12px; color: var(--texte-3); margin: -6px 0 10px; }
+  .kpis { display: flex; gap: 10px; margin-bottom: 12px; }
+  .kpi { flex: 1; background: var(--carte); border-radius: var(--rayon); padding: 13px 14px; box-shadow: var(--ombre); }
+  .kpi .k-val { font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
+  .kpi .k-lib { font-size: 11px; color: var(--texte-3); font-weight: 600; margin-top: 3px; line-height: 1.35; }
+
+  /* ---------- PAIEMENTS ---------- */
+  .paiement-ligne { display: flex; align-items: center; gap: 12px; }
+  .freq { font-size: 11.5px; color: var(--texte-3); margin-top: 2px; }
+  .actions { display: flex; gap: 2px; }
+  .actions button {
+    background: var(--fond); border: none; border-radius: 10px;
+    width: 36px; height: 36px; font-size: 15px; cursor: pointer;
+  }
+  .actions button + button { margin-left: 6px; }
+
+  /* ---------- FORMULAIRES ---------- */
+  .form-groupe { margin-bottom: 14px; }
+  label { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 6px; color: var(--texte-2); }
+  input, select {
+    width: 100%; padding: 13px 14px; border: 1.5px solid var(--bordure);
+    border-radius: 14px; font-size: 16px; background: #fafbfe; color: var(--texte);
+    transition: border-color .15s;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); background: #fff; }
+  .btn {
+    display: block; width: 100%; padding: 15px; border: none; border-radius: 16px;
+    background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff;
+    font-size: 16px; font-weight: 700; cursor: pointer;
+    box-shadow: 0 6px 16px rgba(46,28,20,.35);
+    transition: transform .1s;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn-sec { background: #f0e6dd; color: var(--accent); box-shadow: none; }
+  .btn-danger { background: #f9e9e7; color: var(--rouge); box-shadow: none; }
+  .btn + .btn { margin-top: 10px; }
+
+  /* ---------- FAB ---------- */
+  .fab {
+    position: fixed; right: 18px; bottom: calc(96px + env(safe-area-inset-bottom));
+    width: 58px; height: 58px; border-radius: 20px;
+    background: linear-gradient(135deg, var(--g1), var(--g3)); color: #fff;
+    font-size: 30px; border: none; box-shadow: 0 10px 24px rgba(46,28,20,.45);
+    cursor: pointer; z-index: 20; line-height: 1; transition: transform .12s;
+  }
+  .fab:active { transform: scale(.92); }
+
+  /* ---------- NAV BAS ---------- */
+  nav {
+    position: fixed; bottom: 10px; left: 12px; right: 12px;
+    background: rgba(255,255,255,.92); backdrop-filter: blur(14px);
+    border-radius: 24px; display: flex; padding: 6px;
+    box-shadow: 0 10px 30px rgba(15,23,42,.14);
+    z-index: 30; max-width: 616px; margin: 0 auto;
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+  nav button {
+    flex: 1; background: none; border: none; padding: 9px 4px 8px;
+    font-size: 10.5px; font-weight: 600; color: var(--texte-3);
+    cursor: pointer; border-radius: 18px; transition: all .15s;
+  }
+  nav button svg { display: block; margin: 0 auto 3px; width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  nav button.actif { color: #fff; background: linear-gradient(135deg, var(--g1), var(--g2)); box-shadow: 0 4px 12px rgba(46,28,20,.35); }
+
+  /* ---------- MODALE ---------- */
+  .modale {
+    position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 40;
+    display: none; align-items: flex-end; justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  .modale.ouverte { display: flex; }
+  .modale .contenu {
+    background: var(--carte); width: 100%; max-width: 640px;
+    border-radius: 28px 28px 0 0; padding: 10px 20px 20px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    max-height: 90vh; overflow-y: auto;
+    animation: monte .25s ease;
+  }
+  @keyframes monte { from { transform: translateY(40px); opacity: .5; } to { transform: none; opacity: 1; } }
+  .poignee { width: 40px; height: 4px; border-radius: 2px; background: var(--bordure); margin: 6px auto 16px; }
+  .modale h2 { font-size: 18px; font-weight: 800; margin-bottom: 16px; letter-spacing: -.01em; }
+
+  .aide { font-size: 12px; color: var(--texte-2); line-height: 1.6; margin-top: 6px; }
+  code { background: var(--fond); padding: 1px 6px; border-radius: 6px; font-size: 11px; }
+  .cache { display: none; }
+
+  input[type="file"] { padding: 10px; background: var(--fond); border-style: dashed; }
+</style>
+</head>
+<body>
+
+<div class="entete">
+  <div class="haut">
+    <div class="logo">💳</div>
+    <div>
+      <h1>Mes Prélèvements</h1>
+      <div class="sous" id="sousTitre"></div>
+    </div>
+  </div>
+</div>
+
+<div class="hero" id="hero">
+  <div class="libelle" id="heroLibelle">Aujourd'hui</div>
+  <div class="chiffre" id="heroChiffre">0</div>
+  <div class="note" id="heroNote"></div>
+</div>
+
+<main>
+  <!-- VUE JOURS -->
+  <section id="vue-jours"></section>
+
+  <!-- VUE COMPTES -->
+  <section id="vue-comptes" class="cache">
+    <div class="nav-mois">
+      <button id="moisPrec">‹</button>
+      <div class="titre-mois" id="titreMois"></div>
+      <button id="moisSuiv">›</button>
+    </div>
+    <div id="listeComptes"></div>
+  </section>
+
+  <!-- VUE STATS -->
+  <section id="vue-stats" class="cache">
+    <div id="statsContenu"></div>
+  </section>
+
+  <!-- VUE DETTES -->
+  <section id="vue-dettes" class="cache">
+    <div id="dettesContenu"></div>
+  </section>
+
+  <!-- VUE PAIEMENTS -->
+  <section id="vue-paiements" class="cache">
+    <div id="listePaiements"></div>
+
+    <div class="carte">
+      <div class="titre-carte"><span class="ico-carte">📥</span>Importer un fichier CSV</div>
+      <p class="aide">Format (séparateur <code>;</code> ou <code>,</code>) :<br>
+      <code>nom;montant;compte;jour</code> — jour du mois (1 à 31) pour un prélèvement mensuel,<br>
+      ou <code>nom;montant;compte;date</code> — date <code>JJ/MM/AAAA</code> pour un paiement ponctuel,<br>
+      ou <code>nom;montant;compte;lundi</code> — jour de la semaine pour un prélèvement hebdomadaire.<br>
+      5e colonne facultative : la catégorie (ex : <code>Logement</code>…).<br>
+      6e colonne facultative : la fréquence (<code>hebdo</code>, <code>bihebdo</code>, <code>mensuel</code>, <code>bimestriel</code>, <code>trimestriel</code>, <code>semestriel</code>, <code>annuel</code>, <code>ponctuel</code>).</p>
+      <input type="file" id="fichierCsv" accept=".csv,.txt" style="margin-top:12px;">
+    </div>
+    <div class="carte">
+      <div class="titre-carte"><span class="ico-carte">💾</span>Sauvegarde</div>
+      <button class="btn btn-sec" id="btnExport">Exporter mes données (CSV)</button>
+      <button class="btn btn-danger" id="btnEffacer">Tout effacer</button>
+    </div>
+  </section>
+</main>
+
+<button class="fab" id="btnAjouter" title="Ajouter un paiement">+</button>
+
+<nav>
+  <button data-vue="jours" class="actif">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Jours</button>
+  <button data-vue="comptes">
+    <svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6"/></svg>Comptes</button>
+  <button data-vue="stats">
+    <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>Stats</button>
+  <button data-vue="dettes">
+    <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg>Dettes</button>
+  <button data-vue="paiements">
+    <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>Paiements</button>
+</nav>
+
+<!-- MODALE -->
+<div class="modale" id="modale">
+  <div class="contenu">
+    <div class="poignee"></div>
+    <h2 id="titreModale">Ajouter un paiement</h2>
+    <div class="form-groupe">
+      <label for="fNom">Nom du prélèvement</label>
+      <input id="fNom" placeholder="Ex : Loyer, Électricité, Internet…">
+    </div>
+    <div class="form-groupe">
+      <label for="fMontant">Montant ($)</label>
+      <input id="fMontant" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Ex : 250">
+    </div>
+    <div class="form-groupe">
+      <label for="fCompte">Compte bancaire débité</label>
+      <input id="fCompte" list="listeComptesConnus" placeholder="Ex : Compte courant">
+      <datalist id="listeComptesConnus"></datalist>
+    </div>
+    <div class="form-groupe">
+      <label for="fCategorie">Catégorie</label>
+      <select id="fCategorie"></select>
+    </div>
+    <div class="form-groupe">
+      <label for="fMode">Qui effectue le paiement ?</label>
+      <select id="fMode">
+        <option value="auto">🏦 Prélèvement automatique (la banque prélève)</option>
+        <option value="manuel">✋ Moi-même (je dois faire le paiement)</option>
+      </select>
+      <p class="aide">Si c'est toi qui fais le paiement, tu pourras le cocher comme « fait » dans la vue Jours.</p>
+    </div>
+    <div class="form-groupe">
+      <label for="fFreq">Fréquence</label>
+      <select id="fFreq">
+        <option value="hebdo">Chaque semaine (hebdomadaire)</option>
+        <option value="bihebdo">Toutes les 2 semaines</option>
+        <option value="mensuel" selected>Tous les mois (mensuel)</option>
+        <option value="bimestriel">Tous les 2 mois</option>
+        <option value="trimestriel">Tous les 3 mois (trimestriel)</option>
+        <option value="semestriel">Tous les 6 mois (semestriel)</option>
+        <option value="annuel">Chaque année (annuel)</option>
+        <option value="ponctuel">Une seule fois (date précise)</option>
+      </select>
+    </div>
+    <div class="form-groupe" id="grpJour">
+      <label for="fJour">Jour du mois (1 à 31)</label>
+      <input id="fJour" type="number" inputmode="numeric" min="1" max="31" placeholder="Ex : 15">
+      <p class="aide">Si le mois est plus court (ex : 31 en février), le prélèvement est placé sur le dernier jour du mois.</p>
+    </div>
+    <div class="form-groupe cache" id="grpJourSemaine">
+      <label for="fJourSemaine">Jour de la semaine</label>
+      <select id="fJourSemaine">
+        <option value="1">Lundi</option>
+        <option value="2">Mardi</option>
+        <option value="3">Mercredi</option>
+        <option value="4">Jeudi</option>
+        <option value="5">Vendredi</option>
+        <option value="6">Samedi</option>
+        <option value="0">Dimanche</option>
+      </select>
+    </div>
+    <div class="form-groupe cache" id="grpDate">
+      <label for="fDate" id="libDate">Date du paiement</label>
+      <input id="fDate" type="date">
+      <p class="aide cache" id="aideDate">Le prélèvement se répétera automatiquement à partir de cette première échéance.</p>
+    </div>
+    <button class="btn" id="btnEnregistrer">Enregistrer</button>
+    <button class="btn btn-sec" id="btnAnnuler">Annuler</button>
+  </div>
+</div>
+
+<!-- MODALE DETTE -->
+<div class="modale" id="modaleDette">
+  <div class="contenu">
+    <div class="poignee"></div>
+    <h2 id="titreModaleDette">Ajouter une dette</h2>
+    <div class="form-groupe">
+      <label for="dCarte">Carte de crédit</label>
+      <input id="dCarte" list="listeCartes" placeholder="Ex : Visa, Mastercard, Carte magasin…">
+      <datalist id="listeCartes"></datalist>
+    </div>
+    <div class="form-groupe">
+      <label for="dMois">Mois concerné</label>
+      <input id="dMois" type="month">
+    </div>
+    <div class="form-groupe">
+      <label for="dMontant">Montant de la dette ($)</label>
+      <input id="dMontant" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Ex : 15000">
+      <p class="aide">Saisis le solde de la carte à la fin du mois. Si une entrée existe déjà pour cette carte et ce mois, elle sera remplacée.</p>
+    </div>
+    <div class="form-groupe">
+      <label for="dLimite">Limite de la carte ($) — facultatif</label>
+      <input id="dLimite" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Ex : 23000">
+      <p class="aide">La limite est mémorisée pour cette carte et s'applique à tous les mois. Ex : RBC → 15 000 $ sur 23 000 $.</p>
+    </div>
+    <button class="btn" id="btnEnregistrerDette">Enregistrer</button>
+    <button class="btn btn-sec" id="btnAnnulerDette">Annuler</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var CLE = 'mes-prelevements-v1';
+  var DEVISE = '$';
+  var COULEURS = ['#4e342e','#6d4c41','#8d6e63','#a0522d','#b8860b','#5d4037','#8b5a2b','#3e2723','#96694a','#7d6b60'];
+  var CATS = [
+    { id: 'logement',   nom: 'Logement',           emoji: '🏠', coul: '#4e342e' },
+    { id: 'energie',    nom: 'Énergie & Eau',       emoji: '⚡', coul: '#b8860b' },
+    { id: 'telecom',    nom: 'Internet & Télécom',  emoji: '📶', coul: '#8d6e63' },
+    { id: 'assurance',  nom: 'Assurance',           emoji: '🛡️', coul: '#556b2f' },
+    { id: 'transport',  nom: 'Transport',           emoji: '🚗', coul: '#6d4c41' },
+    { id: 'abonnement', nom: 'Abonnements & Loisirs', emoji: '📺', coul: '#a0522d' },
+    { id: 'credit',     nom: 'Crédit & Banque',     emoji: '💳', coul: '#3e2723' },
+    { id: 'sante',      nom: 'Santé',               emoji: '🏥', coul: '#c62828' },
+    { id: 'autre',      nom: 'Autre',               emoji: '📦', coul: '#7d6b60' }
+  ];
+  function cat(id) {
+    for (var i = 0; i < CATS.length; i++) if (CATS[i].id === id) return CATS[i];
+    return CATS[CATS.length - 1];
+  }
+  var JOURS_SEM = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  var PAS_MOIS = { bimestriel: 2, trimestriel: 3, semestriel: 6, annuel: 12 };
+  var FREQS = ['hebdo','bihebdo','mensuel','bimestriel','trimestriel','semestriel','annuel','ponctuel'];
+
+  var CLE_FAITS = 'mes-prelevements-faits';
+  var CLE_DETTES = 'mes-dettes-v1';
+  var etat = {
+    paiements: charger(),
+    faits: chargerFaits(),
+    dettes: chargerDettes(),
+    vue: 'jours',
+    mois: null,
+    editionId: null,
+    editionDetteId: null
+  };
+  function chargerDettes() {
+    try { return JSON.parse(localStorage.getItem(CLE_DETTES)) || []; }
+    catch (e) { return []; }
+  }
+  function sauverDettes() { localStorage.setItem(CLE_DETTES, JSON.stringify(etat.dettes)); }
+  var CLE_LIMITES = 'mes-dettes-limites';
+  etat.limites = (function () {
+    try { return JSON.parse(localStorage.getItem(CLE_LIMITES)) || {}; }
+    catch (e) { return {}; }
+  })();
+  function sauverLimites() { localStorage.setItem(CLE_LIMITES, JSON.stringify(etat.limites)); }
+  function limiteDe(carte) {
+    var v = etat.limites[String(carte).toLowerCase().trim()];
+    return v > 0 ? Number(v) : null;
+  }
+  function couleurUtil(pct) {
+    return pct <= 30 ? '#2e7d32' : pct <= 70 ? '#b8860b' : '#c62828';
+  }
+  function chargerFaits() {
+    try { return JSON.parse(localStorage.getItem(CLE_FAITS)) || {}; }
+    catch (e) { return {}; }
+  }
+  function sauverFaits() { localStorage.setItem(CLE_FAITS, JSON.stringify(etat.faits)); }
+  var auj = new Date(); auj.setHours(0,0,0,0);
+  etat.mois = new Date(auj.getFullYear(), auj.getMonth(), 1);
+
+  function charger() {
+    try { return JSON.parse(localStorage.getItem(CLE)) || []; }
+    catch (e) { return []; }
+  }
+  function sauver() { localStorage.setItem(CLE, JSON.stringify(etat.paiements)); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+  function couleurDe(texte) {
+    var h = 0;
+    for (var i = 0; i < texte.length; i++) h = (h * 31 + texte.charCodeAt(i)) >>> 0;
+    return COULEURS[h % COULEURS.length];
+  }
+  function fmtMontant(n) {
+    var s = Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return s + ' ' + DEVISE;
+  }
+  function fmtMois(m) {
+    var t = m.split('-');
+    return new Date(Number(t[0]), Number(t[1]) - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  }
+  function fmtMoisCourt(m) {
+    var t = m.split('-');
+    return new Date(Number(t[0]), Number(t[1]) - 1, 1).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '');
+  }
+  function fmtCourt(n) {
+    n = Number(n);
+    return n >= 1000 ? (Math.round(n / 100) / 10).toLocaleString('fr-FR') + 'k' : String(Math.round(n));
+  }
+  function moisDettes() {
+    var s = {};
+    etat.dettes.forEach(function (x) { s[x.mois] = 1; });
+    return Object.keys(s).sort();
+  }
+  function totalDettesMois(m) {
+    return etat.dettes.filter(function (x) { return x.mois === m; })
+      .reduce(function (s, x) { return s + Number(x.montant); }, 0);
+  }
+  function joursDansMois(a, m) { return new Date(a, m + 1, 0).getDate(); }
+  function memeJour(a, b) { return a.getTime() === b.getTime(); }
+  function isoDate(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function dateLocale(iso) {
+    var t = String(iso).split('-');
+    return new Date(Number(t[0]), Number(t[1]) - 1, Number(t[2]));
+  }
+  function tombeLe(p, d) {
+    if (p.freq === 'hebdo') return d.getDay() === Number(p.jourSemaine);
+    if (p.freq === 'mensuel') {
+      var eff = Math.min(p.jour, joursDansMois(d.getFullYear(), d.getMonth()));
+      return d.getDate() === eff;
+    }
+    if (p.freq === 'ponctuel') return p.date === isoDate(d);
+    if (p.freq === 'bihebdo') {
+      if (!p.date) return false;
+      var diff = Math.round((d.getTime() - dateLocale(p.date).getTime()) / 86400000);
+      return diff >= 0 && diff % 14 === 0;
+    }
+    var pas = PAS_MOIS[p.freq];
+    if (pas) {
+      if (!p.date) return false;
+      var anc = dateLocale(p.date);
+      var dm = (d.getFullYear() - anc.getFullYear()) * 12 + (d.getMonth() - anc.getMonth());
+      if (dm < 0 || dm % pas !== 0) return false;
+      var eff2 = Math.min(anc.getDate(), joursDansMois(d.getFullYear(), d.getMonth()));
+      return d.getDate() === eff2;
+    }
+    return false;
+  }
+  function freqLabel(p) {
+    if (p.freq === 'hebdo') return '🔁 Chaque ' + JOURS_SEM[Number(p.jourSemaine)];
+    if (p.freq === 'mensuel') return '🔁 Le ' + p.jour + ' de chaque mois';
+    if (p.freq === 'ponctuel') return '📅 Le ' + dateLocale(p.date).toLocaleDateString('fr-FR') + ' (une seule fois)';
+    var deb = p.date ? dateLocale(p.date).toLocaleDateString('fr-FR') : '?';
+    if (p.freq === 'bihebdo') return '🔁 Toutes les 2 semaines (dès le ' + deb + ')';
+    if (p.freq === 'bimestriel') return '🔁 Tous les 2 mois (dès le ' + deb + ')';
+    if (p.freq === 'trimestriel') return '🔁 Tous les 3 mois (dès le ' + deb + ')';
+    if (p.freq === 'semestriel') return '🔁 Tous les 6 mois (dès le ' + deb + ')';
+    if (p.freq === 'annuel') return '🔁 Chaque année (dès le ' + deb + ')';
+    return '🔁 ' + p.freq;
+  }
+  function avatarHtml(p) {
+    var k = cat(p.cat);
+    return '<div class="avatar" style="background:linear-gradient(135deg,' + k.coul + ',' + k.coul + 'cc)">' + k.emoji + '</div>';
+  }
+
+  /* ---------- HÉRO ---------- */
+  function rendreHero() {
+    var lib = document.getElementById('heroLibelle');
+    var chi = document.getElementById('heroChiffre');
+    var note = document.getElementById('heroNote');
+
+    if (etat.vue === 'comptes') {
+      var t = totalMois(etat.mois.getFullYear(), etat.mois.getMonth());
+      lib.textContent = 'Total du mois — ' + etat.mois.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+      chi.textContent = fmtMontant(t.total);
+      note.textContent = 'Reste à prévoir : ' + fmtMontant(t.aVenir);
+      return;
+    }
+    if (etat.vue === 'stats') {
+      var ta = totalAnnee(auj.getFullYear());
+      lib.textContent = 'Total de l\'année ' + auj.getFullYear();
+      chi.textContent = fmtMontant(ta);
+      note.textContent = etat.paiements.length + ' paiement' + (etat.paiements.length > 1 ? 's' : '') + ' enregistré' + (etat.paiements.length > 1 ? 's' : '');
+      return;
+    }
+    if (etat.vue === 'dettes') {
+      var ms = moisDettes();
+      if (ms.length === 0) {
+        lib.textContent = 'Dettes de cartes de crédit';
+        chi.textContent = fmtMontant(0);
+        note.textContent = 'Aucune dette enregistrée — appuie sur + pour commencer';
+        return;
+      }
+      var cur = ms[ms.length - 1], tot = totalDettesMois(cur);
+      var limTot = 0;
+      etat.dettes.forEach(function (x) {
+        if (x.mois === cur) { var l = limiteDe(x.carte); if (l) limTot += l; }
+      });
+      lib.textContent = 'Dettes — ' + fmtMois(cur);
+      chi.textContent = fmtMontant(tot) + (limTot > 0 ? ' / ' + fmtMontant(limTot) : '');
+      var pctH = limTot > 0 ? Math.min(100, Math.round(tot / limTot * 100)) : 0;
+      var suffixe = limTot > 0 ? ' · ' + pctH + ' % des limites' + (pctH > 30 ? ' ⚠️' : '') : '';
+      if (ms.length >= 2) {
+        var prev = ms[ms.length - 2], diffD = tot - totalDettesMois(prev);
+        note.textContent = (diffD > 0 ? '▲ +' + fmtMontant(diffD) + ' vs ' + fmtMois(prev)
+          : diffD < 0 ? '▼ −' + fmtMontant(Math.abs(diffD)) + ' vs ' + fmtMois(prev) + ' 👏'
+          : '= Identique à ' + fmtMois(prev)) + suffixe;
+      } else {
+        note.textContent = 'Premier mois enregistré' + suffixe;
+      }
+      return;
+    }
+    var duJour = etat.paiements.filter(function (p) { return tombeLe(p, auj); });
+    var total = duJour.reduce(function (s, p) { return s + Number(p.montant); }, 0);
+    lib.textContent = 'À prélever aujourd\'hui — ' + auj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+    chi.textContent = fmtMontant(total);
+    var manuelsRestants = duJour.filter(function (p) {
+      return p.mode === 'manuel' && !etat.faits[p.id + '|' + isoDate(auj)];
+    }).length;
+    note.textContent = duJour.length === 0 ? 'Aucun prélèvement aujourd\'hui 🎉'
+      : duJour.length + ' prélèvement' + (duJour.length > 1 ? 's' : '') + ' prévu' + (duJour.length > 1 ? 's' : '') +
+        (manuelsRestants > 0 ? ' · ✋ ' + manuelsRestants + ' à faire toi-même' : '');
+  }
+  function totalMois(a, m) {
+    var total = 0, aVenir = 0;
+    var nb = joursDansMois(a, m);
+    for (var j = 1; j <= nb; j++) {
+      var d = new Date(a, m, j);
+      etat.paiements.forEach(function (p) {
+        if (!tombeLe(p, d)) return;
+        total += Number(p.montant);
+        if (d.getTime() >= auj.getTime()) aVenir += Number(p.montant);
+      });
+    }
+    return { total: total, aVenir: aVenir };
+  }
+  function totalAnnee(a) {
+    var t = 0;
+    for (var m = 0; m < 12; m++) t += totalMois(a, m).total;
+    return t;
+  }
+
+  /* ---------- VUE JOURS ---------- */
+  function rendreJours() {
+    var conteneur = document.getElementById('vue-jours');
+    conteneur.innerHTML = '';
+    if (etat.paiements.length === 0) {
+      conteneur.innerHTML = '<div class="vide"><span class="emoji">🗓️</span>Aucun paiement enregistré.<br>Appuie sur <b>+</b> pour ajouter ton premier prélèvement,<br>ou importe un fichier CSV dans l\'onglet « Paiements ».</div>';
+      return;
+    }
+    var rien = true;
+    for (var i = 0; i < 62; i++) {
+      var d = new Date(auj); d.setDate(auj.getDate() + i);
+      var duJour = etat.paiements.filter(function (p) { return tombeLe(p, d); });
+      if (duJour.length === 0) continue;
+      rien = false;
+      var total = duJour.reduce(function (s, p) { return s + Number(p.montant); }, 0);
+      var estAuj = memeJour(d, auj);
+      var carte = document.createElement('div');
+      carte.className = 'carte';
+      var html = '<div class="jour-tete"><div class="jour-date">' +
+        '<div class="pastille-date' + (estAuj ? ' auj' : '') + '">' +
+          '<span class="num">' + d.getDate() + '</span>' +
+          '<span class="mois">' + d.toLocaleDateString('fr-FR', { month: 'short' }).replace('.','') + '</span></div>' +
+        '<div><div class="jour-nom">' + (estAuj ? "Aujourd'hui" : d.toLocaleDateString('fr-FR', { weekday: 'long' })) + '</div>' +
+        '<div class="jour-sous">' + duJour.length + ' prélèvement' + (duJour.length > 1 ? 's' : '') + '</div></div></div>' +
+        '<div class="jour-total">−' + fmtMontant(total) + '</div></div><div class="lignes">';
+      var iso = isoDate(d);
+      duJour.forEach(function (p) {
+        var manuel = p.mode === 'manuel';
+        var fait = manuel && etat.faits[p.id + '|' + iso];
+        html += '<div class="ligne' + (fait ? ' fait' : '') + '">' + avatarHtml(p) +
+          '<div class="infos"><div class="nom">' + echap(p.nom) +
+          (manuel ? '<span class="tag-manuel">✋ Moi-même</span>' : '') + '</div>' +
+          '<div class="compte">🏦 ' + echap(p.compte) + '</div></div>' +
+          '<div class="montant">' + fmtMontant(p.montant) + '</div>' +
+          (manuel ? '<button class="btn-fait' + (fait ? ' ok' : '') + '" data-fait="' + p.id + '|' + iso + '" title="Marquer comme fait">' + (fait ? '✓' : '') + '</button>' : '') +
+          '</div>';
+      });
+      html += '</div>';
+      carte.innerHTML = html;
+      conteneur.appendChild(carte);
+    }
+    if (rien) {
+      conteneur.innerHTML = '<div class="vide"><span class="emoji">🎉</span>Aucun prélèvement prévu dans les 60 prochains jours.</div>';
+    }
+  }
+
+  /* ---------- VUE COMPTES ---------- */
+  function rendreComptes() {
+    var a = etat.mois.getFullYear(), m = etat.mois.getMonth();
+    document.getElementById('titreMois').textContent =
+      etat.mois.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+    var parCompte = {};
+    var nbJours = joursDansMois(a, m);
+    for (var j = 1; j <= nbJours; j++) {
+      var d = new Date(a, m, j);
+      etat.paiements.forEach(function (p) {
+        if (!tombeLe(p, d)) return;
+        var c = p.compte || 'Compte non précisé';
+        if (!parCompte[c]) parCompte[c] = { total: 0, aVenir: 0, nb: 0 };
+        var mnt = Number(p.montant);
+        parCompte[c].total += mnt; parCompte[c].nb++;
+        if (d.getTime() >= auj.getTime()) parCompte[c].aVenir += mnt;
+      });
+    }
+    var liste = document.getElementById('listeComptes');
+    liste.innerHTML = '';
+    var noms = Object.keys(parCompte).sort();
+    if (noms.length === 0) {
+      liste.innerHTML = '<div class="vide"><span class="emoji">🏦</span>Aucun prélèvement ce mois-ci.</div>';
+      rendreHero();
+      return;
+    }
+    noms.forEach(function (c) {
+      var v = parCompte[c];
+      var coul = couleurDe(c);
+      var passe = v.total - v.aVenir;
+      var pct = v.total > 0 ? Math.round(passe / v.total * 100) : 0;
+      var div = document.createElement('div');
+      div.className = 'carte compte-carte';
+      div.innerHTML = '<div class="barre" style="background:' + coul + '"></div>' +
+        '<div class="tete"><div class="nom-compte">' +
+        '<div class="avatar" style="width:36px;height:36px;font-size:14px;background:linear-gradient(135deg,' + coul + ',' + coul + 'cc)">🏦</div>' +
+        '<span class="txt">' + echap(c) + '</span></div>' +
+        '<div class="total-compte">' + fmtMontant(v.total) + '</div></div>' +
+        '<div class="jauge"><div style="width:' + pct + '%;background:' + coul + '"></div></div>' +
+        '<div class="detail"><span class="passe">✓ Passé : ' + fmtMontant(passe) + '</span>' +
+        '<span class="avenir">Reste : ' + fmtMontant(v.aVenir) + '</span></div>';
+      liste.appendChild(div);
+    });
+    rendreHero();
+  }
+
+  /* ---------- VUE STATS ---------- */
+  function rendreStats() {
+    var conteneur = document.getElementById('statsContenu');
+    if (etat.paiements.length === 0) {
+      conteneur.innerHTML = '<div class="vide"><span class="emoji">📊</span>Ajoute des paiements pour voir tes statistiques.</div>';
+      return;
+    }
+    var a = auj.getFullYear(), m = auj.getMonth();
+    var html = '';
+
+    /* --- agrégats du mois en cours : par jour et par catégorie --- */
+    var parJour = {}, parCat = {};
+    var nbJours = joursDansMois(a, m);
+    for (var j = 1; j <= nbJours; j++) {
+      var d = new Date(a, m, j);
+      etat.paiements.forEach(function (p) {
+        if (!tombeLe(p, d)) return;
+        var mnt = Number(p.montant);
+        if (!parJour[j]) parJour[j] = { total: 0, nb: 0 };
+        parJour[j].total += mnt; parJour[j].nb++;
+        var k = cat(p.cat).id;
+        if (!parCat[k]) parCat[k] = { total: 0, nb: 0 };
+        parCat[k].total += mnt; parCat[k].nb++;
+      });
+    }
+
+    /* --- agrégats par mois (année en cours) --- */
+    var parMois = [];
+    for (var mm = 0; mm < 12; mm++) parMois.push(totalMois(a, mm).total);
+    var maxMois = Math.max.apply(null, parMois);
+    var idxMaxMois = parMois.indexOf(maxMois);
+
+    var joursTries = Object.keys(parJour).map(Number).sort(function (x, y) { return parJour[y].total - parJour[x].total; });
+    var catsTriees = Object.keys(parCat).sort(function (x, y) { return parCat[y].total - parCat[x].total; });
+
+    /* --- KPIs --- */
+    var jourMax = joursTries[0];
+    var catMax = catsTriees[0];
+    html += '<div class="kpis">' +
+      '<div class="kpi"><div class="k-val">' + (jourMax ? 'Le ' + jourMax : '—') + '</div><div class="k-lib">Jour le plus chargé du mois' + (jourMax ? '<br>' + fmtMontant(parJour[jourMax].total) : '') + '</div></div>' +
+      '<div class="kpi"><div class="k-val">' + new Date(a, idxMaxMois, 1).toLocaleDateString('fr-FR', { month: 'long' }) + '</div><div class="k-lib">Mois le plus dépensier<br>' + fmtMontant(maxMois) + '</div></div>' +
+      '<div class="kpi"><div class="k-val">' + (catMax ? cat(catMax).emoji + ' ' + cat(catMax).nom.split(' ')[0] : '—') + '</div><div class="k-lib">1ʳᵉ catégorie' + (catMax ? '<br>' + fmtMontant(parCat[catMax].total) + ' / mois' : '') + '</div></div>' +
+      '</div>';
+
+    /* --- Jours les plus chargés --- */
+    html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">📅</span>Jours les plus chargés</div>' +
+      '<div class="sous-carte">Mois en cours — classés par montant total</div>';
+    var maxJour = joursTries.length ? parJour[joursTries[0]].total : 0;
+    joursTries.slice(0, 7).forEach(function (j2, i) {
+      var v = parJour[j2];
+      var pct = maxJour > 0 ? Math.round(v.total / maxJour * 100) : 0;
+      html += '<div class="stat-ligne' + (i === 0 ? ' max' : '') + '">' +
+        '<span class="lib">Le ' + j2 + ' · ' + v.nb + ' prél.</span>' +
+        '<div class="barre-h"><div style="width:' + pct + '%"></div></div>' +
+        '<span class="val">' + fmtMontant(v.total) + '</span></div>';
+    });
+    html += '</div>';
+
+    /* --- Dépenses par mois --- */
+    html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">📈</span>Dépenses par mois</div>' +
+      '<div class="sous-carte">Année ' + a + ' — le mois le plus dépensier est en rouge</div>';
+    for (var m2 = 0; m2 < 12; m2++) {
+      var pctM = maxMois > 0 ? Math.round(parMois[m2] / maxMois * 100) : 0;
+      var nomMois = new Date(a, m2, 1).toLocaleDateString('fr-FR', { month: 'long' });
+      html += '<div class="stat-ligne' + (m2 === idxMaxMois && maxMois > 0 ? ' max' : '') + (m2 === m ? ' actuel' : '') + '">' +
+        '<span class="lib">' + nomMois + (m2 === m ? ' •' : '') + '</span>' +
+        '<div class="barre-h"><div style="width:' + pctM + '%"></div></div>' +
+        '<span class="val">' + fmtMontant(parMois[m2]) + '</span></div>';
+    }
+    html += '</div>';
+
+    /* --- Par catégorie --- */
+    html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">🏷️</span>Par catégorie</div>' +
+      '<div class="sous-carte">Mois en cours — montants et nombre de prélèvements</div>';
+    var maxCat = catsTriees.length ? parCat[catsTriees[0]].total : 0;
+    catsTriees.forEach(function (k2, i) {
+      var v = parCat[k2], kk = cat(k2);
+      var pct = maxCat > 0 ? Math.round(v.total / maxCat * 100) : 0;
+      html += '<div class="stat-ligne">' +
+        '<span class="lib">' + kk.emoji + ' ' + kk.nom + '</span>' +
+        '<div class="barre-h"><div style="width:' + pct + '%;background:' + kk.coul + '"></div></div>' +
+        '<span class="val">' + fmtMontant(v.total) + (i === 0 ? '<span class="badge">TOP</span>' : '') + '</span></div>';
+    });
+    html += '</div>';
+
+    /* --- Plus gros prélèvements --- */
+    var gros = etat.paiements.slice().sort(function (x, y) { return Number(y.montant) - Number(x.montant); }).slice(0, 5);
+    html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">🥇</span>Plus gros prélèvements</div><div class="lignes" style="margin-top:0">';
+    gros.forEach(function (p) {
+      html += '<div class="ligne">' + avatarHtml(p) +
+        '<div class="infos"><div class="nom">' + echap(p.nom) + '</div>' +
+        '<div class="compte">🏦 ' + echap(p.compte) + '</div></div>' +
+        '<div class="montant">' + fmtMontant(p.montant) + '</div></div>';
+    });
+    html += '</div></div>';
+
+    conteneur.innerHTML = html;
+  }
+
+  /* ---------- VUE DETTES ---------- */
+  function rendreDettes() {
+    var conteneur = document.getElementById('dettesContenu');
+    var ms = moisDettes();
+    if (ms.length === 0) {
+      conteneur.innerHTML = '<div class="vide"><span class="emoji">💳</span>Aucune dette enregistrée.<br>Appuie sur <b>+</b> pour saisir la dette<br>d\'une carte pour un mois donné.</div>';
+      return;
+    }
+    var html = '';
+
+    /* mes cartes : dette sur limite + total, pour le mois le plus récent */
+    var curM = ms[ms.length - 1];
+    var entreesCur = etat.dettes.filter(function (x) { return x.mois === curM; })
+      .sort(function (x, y) { return x.carte.localeCompare(y.carte); });
+    var totCur = 0, totLim = 0;
+    html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">💳</span>Mes cartes — ' + fmtMois(curM) + '</div>';
+    entreesCur.forEach(function (x) {
+      var lim = limiteDe(x.carte);
+      totCur += Number(x.montant);
+      if (lim) totLim += lim;
+      var pct = lim ? Math.min(100, Math.round(x.montant / lim * 100)) : 0;
+      var coul = lim ? couleurUtil(pct) : 'var(--texte)';
+      html += '<div style="padding:8px 0">' +
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">' +
+        '<span class="nom">💳 ' + echap(x.carte) + '</span>' +
+        '<span style="font-weight:800;white-space:nowrap;color:' + coul + '">' + fmtMontant(x.montant) +
+        (lim ? ' <span style="font-weight:600;color:var(--texte-3)">sur ' + fmtMontant(lim) + '</span>' : '') +
+        '</span></div>' +
+        (lim
+          ? '<div class="jauge" style="margin-top:7px"><div style="width:' + pct + '%;background:' + coul + '"></div><span class="seuil-30"></span></div>' +
+            '<div class="compte" style="margin-top:4px">Utilisation : ' + pct + ' %' + (pct >= 90 ? ' ⚠️' : '') + '</div>' +
+            (x.montant > lim * 0.3
+              ? '<span class="tag-30">⚠️ 30 % de la limite dépassés (+' + fmtMontant(Math.round(x.montant - lim * 0.3)) + ')</span>'
+              : '<span class="tag-30 ok">✓ Sous les 30 % recommandés</span>')
+          : '<div class="compte" style="margin-top:4px">Limite non définie — modifie la dette ✏️ pour l\'ajouter</div>') +
+        '</div>';
+    });
+    var pctT = totLim > 0 ? Math.min(100, Math.round(totCur / totLim * 100)) : 0;
+    html += '<div style="border-top:2px solid var(--bordure);padding-top:10px;margin-top:4px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">' +
+      '<span class="nom"><b>Total de mes dettes</b></span>' +
+      '<span style="font-weight:800;font-size:16px">' + fmtMontant(totCur) +
+      (totLim > 0 ? ' <span style="font-weight:600;font-size:12.5px;color:var(--texte-3)">sur ' + fmtMontant(totLim) + '</span>' : '') +
+      '</span></div>' +
+      (totLim > 0
+        ? '<div class="jauge" style="margin-top:7px"><div style="width:' + pctT + '%;background:' + couleurUtil(pctT) + '"></div><span class="seuil-30"></span></div>' +
+          '<div class="compte" style="margin-top:4px">Utilisation globale : ' + pctT + ' % de mes limites</div>' +
+          (totCur > totLim * 0.3
+            ? '<span class="tag-30">⚠️ 30 % du total des limites dépassés (+' + fmtMontant(Math.round(totCur - totLim * 0.3)) + ')</span>'
+            : '<span class="tag-30 ok">✓ Sous les 30 % recommandés</span>')
+        : '') +
+      '</div></div>';
+
+    /* graphique d'évolution */
+    var derniers = ms.slice(-8);
+    var totaux = derniers.map(totalDettesMois);
+    var maxT = Math.max.apply(null, totaux);
+    html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">📉</span>Évolution de mes dettes</div>' +
+      '<div class="sous-carte">Total de toutes les cartes, mois par mois</div><div class="graf">';
+    derniers.forEach(function (m2, i) {
+      var pct = maxT > 0 ? Math.max(3, Math.round(totaux[i] / maxT * 100)) : 3;
+      html += '<div class="col' + (totaux[i] === maxT && maxT > 0 ? ' max' : '') + '">' +
+        '<span class="vm">' + fmtCourt(totaux[i]) + '</span>' +
+        '<div class="barre-v" style="height:' + pct + '%"></div>' +
+        '<span class="lm">' + fmtMoisCourt(m2) + '</span></div>';
+    });
+    html += '</div></div>';
+
+    /* comparaison mois passé vs mois en cours */
+    var cur = ms[ms.length - 1];
+    if (ms.length >= 2) {
+      var prev = ms[ms.length - 2];
+      html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">⚖️</span>' +
+        fmtMois(prev) + ' → ' + fmtMois(cur) + '</div>';
+      var cartes = {};
+      etat.dettes.forEach(function (x) { if (x.mois === cur || x.mois === prev) cartes[x.carte] = 1; });
+      Object.keys(cartes).sort().forEach(function (c) {
+        var av = etat.dettes.filter(function (x) { return x.mois === prev && x.carte === c; })
+          .reduce(function (s, x) { return s + Number(x.montant); }, 0);
+        var ap = etat.dettes.filter(function (x) { return x.mois === cur && x.carte === c; })
+          .reduce(function (s, x) { return s + Number(x.montant); }, 0);
+        var diff = ap - av;
+        var delta = diff > 0 ? '<span class="delta hausse">▲ +' + fmtMontant(diff) + '</span>'
+          : diff < 0 ? '<span class="delta baisse">▼ −' + fmtMontant(Math.abs(diff)) + '</span>'
+          : '<span class="delta">=</span>';
+        html += '<div class="comp-ligne"><div class="infos"><div class="nom">💳 ' + echap(c) + '</div>' +
+          '<div class="compte"><span class="avant">' + fmtMontant(av) + '</span> → <b>' + fmtMontant(ap) + '</b></div></div>' +
+          delta + '</div>';
+      });
+      var tAv = totalDettesMois(prev), tAp = totalDettesMois(cur), tDiff = tAp - tAv;
+      var deltaT = tDiff > 0 ? '<span class="delta hausse">▲ +' + fmtMontant(tDiff) + '</span>'
+        : tDiff < 0 ? '<span class="delta baisse">▼ −' + fmtMontant(Math.abs(tDiff)) + '</span>'
+        : '<span class="delta">=</span>';
+      html += '<div class="comp-ligne"><div class="infos"><div class="nom"><b>Total</b></div>' +
+        '<div class="compte"><span class="avant">' + fmtMontant(tAv) + '</span> → <b>' + fmtMontant(tAp) + '</b></div></div>' +
+        deltaT + '</div></div>';
+    }
+
+    /* détail par mois (du plus récent au plus ancien) */
+    ms.slice().reverse().forEach(function (m2) {
+      html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">🗓️</span>' + fmtMois(m2) +
+        '<span style="margin-left:auto">' + fmtMontant(totalDettesMois(m2)) + '</span></div>';
+      etat.dettes.filter(function (x) { return x.mois === m2; })
+        .sort(function (x, y) { return x.carte.localeCompare(y.carte); })
+        .forEach(function (x) {
+          html += '<div class="comp-ligne"><div class="infos"><div class="nom">💳 ' + echap(x.carte) + '</div></div>' +
+            '<div style="display:flex;align-items:center;gap:10px"><span class="montant">' + fmtMontant(x.montant) + '</span>' +
+            '<div class="actions"><button data-dmodif="' + x.id + '" title="Modifier">✏️</button>' +
+            '<button data-dsuppr="' + x.id + '" title="Supprimer">🗑️</button></div></div></div>';
+        });
+      html += '</div>';
+    });
+
+    conteneur.innerHTML = html;
+  }
+
+  /* ---------- VUE PAIEMENTS ---------- */
+  function rendrePaiements() {
+    var liste = document.getElementById('listePaiements');
+    liste.innerHTML = '';
+    if (etat.paiements.length === 0) {
+      liste.innerHTML = '<div class="vide"><span class="emoji">📋</span>Aucun paiement enregistré.<br>Appuie sur <b>+</b> pour en ajouter.</div>';
+      return;
+    }
+    var tries = etat.paiements.slice().sort(function (x, y) {
+      return (x.compte || '').localeCompare(y.compte || '') || x.nom.localeCompare(y.nom);
+    });
+    tries.forEach(function (p) {
+      var freq = freqLabel(p);
+      var div = document.createElement('div');
+      div.className = 'carte paiement-ligne';
+      div.innerHTML = avatarHtml(p) +
+        '<div class="infos"><div class="nom">' + echap(p.nom) + ' — <b>' + fmtMontant(p.montant) + '</b>' +
+        (p.mode === 'manuel' ? '<span class="tag-manuel">✋ Moi-même</span>' : '') + '</div>' +
+        '<div class="compte">🏦 ' + echap(p.compte) + ' · ' + cat(p.cat).nom + '</div>' +
+        '<div class="freq">' + freq + '</div></div>' +
+        '<div class="actions">' +
+        '<button data-modif="' + p.id + '" title="Modifier">✏️</button>' +
+        '<button data-suppr="' + p.id + '" title="Supprimer">🗑️</button></div>';
+      liste.appendChild(div);
+    });
+  }
+
+  /* ---------- NAVIGATION ---------- */
+  var sousTitres = {
+    jours: 'Prélèvements des 60 prochains jours',
+    comptes: 'Total à prélever par compte bancaire',
+    stats: 'Mes statistiques de dépenses',
+    dettes: 'Mes dettes de cartes de crédit — suivi manuel',
+    paiements: 'Tous mes paiements enregistrés'
+  };
+  function afficherVue(nom) {
+    etat.vue = nom;
+    ['jours','comptes','stats','dettes','paiements'].forEach(function (v) {
+      document.getElementById('vue-' + v).classList.toggle('cache', v !== nom);
+    });
+    document.querySelectorAll('nav button').forEach(function (b) {
+      b.classList.toggle('actif', b.dataset.vue === nom);
+    });
+    document.getElementById('sousTitre').textContent = sousTitres[nom];
+    document.getElementById('btnAjouter').style.display =
+      (nom === 'jours' || nom === 'paiements' || nom === 'dettes') ? 'block' : 'none';
+    toutRendre();
+  }
+  function toutRendre() {
+    rendreHero();
+    if (etat.vue === 'jours') rendreJours();
+    if (etat.vue === 'comptes') rendreComptes();
+    if (etat.vue === 'stats') rendreStats();
+    if (etat.vue === 'dettes') rendreDettes();
+    if (etat.vue === 'paiements') rendrePaiements();
+  }
+  document.querySelectorAll('nav button').forEach(function (b) {
+    b.addEventListener('click', function () { afficherVue(b.dataset.vue); });
+  });
+
+  /* ---------- MARQUER FAIT (paiements manuels) ---------- */
+  document.getElementById('vue-jours').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b || !b.dataset.fait) return;
+    if (etat.faits[b.dataset.fait]) delete etat.faits[b.dataset.fait];
+    else etat.faits[b.dataset.fait] = 1;
+    sauverFaits();
+    toutRendre();
+  });
+
+  /* ---------- MODALE ---------- */
+  var modale = document.getElementById('modale');
+  var selCat = document.getElementById('fCategorie');
+  selCat.innerHTML = CATS.map(function (k) {
+    return '<option value="' + k.id + '">' + k.emoji + ' ' + k.nom + '</option>';
+  }).join('');
+
+  function ouvrirModale(p) {
+    etat.editionId = p ? p.id : null;
+    document.getElementById('titreModale').textContent = p ? 'Modifier le paiement' : 'Ajouter un paiement';
+    document.getElementById('fNom').value = p ? p.nom : '';
+    document.getElementById('fMontant').value = p ? p.montant : '';
+    document.getElementById('fCompte').value = p ? p.compte : '';
+    selCat.value = p ? cat(p.cat).id : 'autre';
+    document.getElementById('fMode').value = (p && p.mode === 'manuel') ? 'manuel' : 'auto';
+    document.getElementById('fFreq').value = (p && FREQS.indexOf(p.freq) >= 0) ? p.freq : 'mensuel';
+    document.getElementById('fJour').value = (p && p.freq === 'mensuel') ? p.jour : '';
+    document.getElementById('fJourSemaine').value = (p && p.freq === 'hebdo') ? String(p.jourSemaine) : '1';
+    document.getElementById('fDate').value = (p && p.date) ? p.date : '';
+    majChampsFreq();
+    majDatalist();
+    modale.classList.add('ouverte');
+  }
+  function fermerModale() { modale.classList.remove('ouverte'); }
+  function majChampsFreq() {
+    var f = document.getElementById('fFreq').value;
+    var avecDate = (f === 'ponctuel' || f === 'bihebdo' || PAS_MOIS[f]);
+    document.getElementById('grpJour').classList.toggle('cache', f !== 'mensuel');
+    document.getElementById('grpJourSemaine').classList.toggle('cache', f !== 'hebdo');
+    document.getElementById('grpDate').classList.toggle('cache', !avecDate);
+    document.getElementById('libDate').textContent =
+      f === 'ponctuel' ? 'Date du paiement' : 'Date de la première échéance';
+    document.getElementById('aideDate').classList.toggle('cache', f === 'ponctuel');
+  }
+  function majDatalist() {
+    var dl = document.getElementById('listeComptesConnus');
+    var comptes = {};
+    etat.paiements.forEach(function (p) { if (p.compte) comptes[p.compte] = 1; });
+    dl.innerHTML = Object.keys(comptes).sort().map(function (c) {
+      return '<option value="' + echap(c) + '">';
+    }).join('');
+  }
+  document.getElementById('fFreq').addEventListener('change', majChampsFreq);
+  document.getElementById('btnAjouter').addEventListener('click', function () {
+    if (etat.vue === 'dettes') ouvrirModaleDette(null);
+    else ouvrirModale(null);
+  });
+  document.getElementById('btnAnnuler').addEventListener('click', fermerModale);
+  modale.addEventListener('click', function (e) { if (e.target === modale) fermerModale(); });
+
+  /* ---------- MODALE DETTE ---------- */
+  var modaleDette = document.getElementById('modaleDette');
+  function moisIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+  function ouvrirModaleDette(x) {
+    etat.editionDetteId = x ? x.id : null;
+    document.getElementById('titreModaleDette').textContent = x ? 'Modifier la dette' : 'Ajouter une dette';
+    document.getElementById('dCarte').value = x ? x.carte : '';
+    document.getElementById('dMois').value = x ? x.mois : moisIso(auj);
+    document.getElementById('dMontant').value = x ? x.montant : '';
+    document.getElementById('dLimite').value = (x && limiteDe(x.carte)) ? limiteDe(x.carte) : '';
+    var dl = document.getElementById('listeCartes'), cs = {};
+    etat.dettes.forEach(function (y) { cs[y.carte] = 1; });
+    dl.innerHTML = Object.keys(cs).sort().map(function (c) { return '<option value="' + echap(c) + '">'; }).join('');
+    modaleDette.classList.add('ouverte');
+  }
+  function fermerModaleDette() { modaleDette.classList.remove('ouverte'); }
+  document.getElementById('dCarte').addEventListener('input', function () {
+    var l = limiteDe(this.value);
+    if (l) document.getElementById('dLimite').value = l;
+  });
+  document.getElementById('btnAnnulerDette').addEventListener('click', fermerModaleDette);
+  modaleDette.addEventListener('click', function (e) { if (e.target === modaleDette) fermerModaleDette(); });
+
+  document.getElementById('btnEnregistrerDette').addEventListener('click', function () {
+    var carte = document.getElementById('dCarte').value.trim();
+    var mois = document.getElementById('dMois').value;
+    var montant = parseFloat(document.getElementById('dMontant').value);
+    var limite = parseFloat(document.getElementById('dLimite').value);
+    if (!carte) return alert('Indique le nom de la carte.');
+    if (!mois) return alert('Choisis le mois concerné.');
+    if (!(montant >= 0)) return alert('Indique un montant valide (0 ou plus).');
+    if (limite > 0) { etat.limites[carte.toLowerCase()] = limite; sauverLimites(); }
+    if (etat.editionDetteId) {
+      etat.dettes = etat.dettes.map(function (y) {
+        return y.id === etat.editionDetteId ? { id: y.id, carte: carte, mois: mois, montant: montant } : y;
+      });
+    } else {
+      etat.dettes = etat.dettes.filter(function (y) {
+        return !(y.carte.toLowerCase() === carte.toLowerCase() && y.mois === mois);
+      });
+      etat.dettes.push({ id: uid(), carte: carte, mois: mois, montant: montant });
+    }
+    sauverDettes(); fermerModaleDette(); toutRendre();
+  });
+
+  document.getElementById('vue-dettes').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.dmodif) {
+      var x = etat.dettes.find(function (y) { return y.id === b.dataset.dmodif; });
+      if (x) ouvrirModaleDette(x);
+    }
+    if (b.dataset.dsuppr) {
+      var q = etat.dettes.find(function (y) { return y.id === b.dataset.dsuppr; });
+      if (q && confirm('Supprimer la dette « ' + q.carte + ' — ' + fmtMois(q.mois) + ' » ?')) {
+        etat.dettes = etat.dettes.filter(function (y) { return y.id !== q.id; });
+        sauverDettes(); toutRendre();
+      }
+    }
+  });
+
+  document.getElementById('btnEnregistrer').addEventListener('click', function () {
+    var nom = document.getElementById('fNom').value.trim();
+    var montant = parseFloat(document.getElementById('fMontant').value);
+    var compte = document.getElementById('fCompte').value.trim();
+    var freq = document.getElementById('fFreq').value;
+    var jour = parseInt(document.getElementById('fJour').value, 10);
+    var date = document.getElementById('fDate').value;
+    var jourSemaine = document.getElementById('fJourSemaine').value;
+    var avecDate = (freq === 'ponctuel' || freq === 'bihebdo' || PAS_MOIS[freq]);
+    if (!nom) return alert('Indique le nom du prélèvement.');
+    if (!(montant > 0)) return alert('Indique un montant valide.');
+    if (!compte) return alert('Indique le compte bancaire débité.');
+    if (freq === 'mensuel' && !(jour >= 1 && jour <= 31)) return alert('Indique un jour du mois entre 1 et 31.');
+    if (avecDate && !date) return alert(freq === 'ponctuel' ? 'Choisis la date du paiement.' : 'Choisis la date de la première échéance.');
+    var p = { id: etat.editionId || uid(), nom: nom, montant: montant, compte: compte, freq: freq, cat: selCat.value, mode: document.getElementById('fMode').value };
+    if (freq === 'mensuel') p.jour = jour;
+    else if (freq === 'hebdo') p.jourSemaine = Number(jourSemaine);
+    else p.date = date;
+    if (etat.editionId) {
+      etat.paiements = etat.paiements.map(function (x) { return x.id === p.id ? p : x; });
+    } else {
+      etat.paiements.push(p);
+    }
+    sauver(); fermerModale(); toutRendre();
+  });
+
+  /* ---------- MODIFIER / SUPPRIMER ---------- */
+  document.getElementById('listePaiements').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.modif) {
+      var p = etat.paiements.find(function (x) { return x.id === b.dataset.modif; });
+      if (p) ouvrirModale(p);
+    }
+    if (b.dataset.suppr) {
+      var q = etat.paiements.find(function (x) { return x.id === b.dataset.suppr; });
+      if (q && confirm('Supprimer « ' + q.nom + ' » ?')) {
+        etat.paiements = etat.paiements.filter(function (x) { return x.id !== q.id; });
+        sauver(); toutRendre();
+      }
+    }
+  });
+
+  /* ---------- NAVIGATION MOIS ---------- */
+  document.getElementById('moisPrec').addEventListener('click', function () {
+    etat.mois = new Date(etat.mois.getFullYear(), etat.mois.getMonth() - 1, 1); rendreComptes();
+  });
+  document.getElementById('moisSuiv').addEventListener('click', function () {
+    etat.mois = new Date(etat.mois.getFullYear(), etat.mois.getMonth() + 1, 1); rendreComptes();
+  });
+
+  /* ---------- IMPORT CSV ---------- */
+  document.getElementById('fichierCsv').addEventListener('change', function (e) {
+    var f = e.target.files[0];
+    if (!f) return;
+    var lecteur = new FileReader();
+    lecteur.onload = function () {
+      var res = importerCsv(String(lecteur.result));
+      alert(res.ok + ' paiement(s) importé(s).' + (res.erreurs ? '\n' + res.erreurs + ' ligne(s) ignorée(s) (format non reconnu).' : ''));
+      sauver(); toutRendre();
+      e.target.value = '';
+    };
+    lecteur.readAsText(f);
+  });
+
+  function catDepuisTexte(txt) {
+    if (!txt) return 'autre';
+    var t = txt.toLowerCase();
+    for (var i = 0; i < CATS.length; i++) {
+      if (CATS[i].id === t || CATS[i].nom.toLowerCase().indexOf(t) === 0 || t.indexOf(CATS[i].id) === 0) return CATS[i].id;
+    }
+    return 'autre';
+  }
+
+  function importerCsv(texte) {
+    var lignes = texte.split(/\r?\n/).filter(function (l) { return l.trim(); });
+    var ok = 0, erreurs = 0;
+    lignes.forEach(function (l, i) {
+      var sep = l.indexOf(';') >= 0 ? ';' : ',';
+      var c = l.split(sep).map(function (x) { return x.trim().replace(/^"|"$/g, ''); });
+      if (c.length < 4) { erreurs++; return; }
+      var montant = parseFloat(c[1].replace(/\s/g, '').replace(',', '.'));
+      if (i === 0 && isNaN(montant)) return; // ligne d'en-tête
+      if (!c[0] || isNaN(montant)) { erreurs++; return; }
+      var dernier = c[3];
+      var p = { id: uid(), nom: c[0], montant: montant, compte: c[2] || 'Compte non précisé', cat: catDepuisTexte(c[4]) };
+      var mDate = dernier.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      var mIso = dernier.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      var dateIso = mDate
+        ? (mDate[3] + '-' + mDate[2].padStart(2,'0') + '-' + mDate[1].padStart(2,'0'))
+        : (mIso ? dernier : null);
+      var fq = (c[5] || '').toLowerCase().trim();
+      if (fq === 'hebdomadaire') fq = 'hebdo';
+      var md = (c[6] || '').toLowerCase().trim();
+      if (md === 'manuel' || md === 'moi' || md === 'moi-même' || md === 'moi-meme') p.mode = 'manuel';
+      var idxSem = JOURS_SEM.indexOf(dernier.toLowerCase());
+      if (fq === 'hebdo' || idxSem >= 0) {
+        var js = idxSem >= 0 ? idxSem : parseInt(dernier, 10);
+        if (!(js >= 0 && js <= 6)) { erreurs++; return; }
+        p.freq = 'hebdo'; p.jourSemaine = js;
+      } else if ((fq === 'bihebdo' || PAS_MOIS[fq]) && dateIso) {
+        p.freq = fq; p.date = dateIso;
+      } else if (dateIso) {
+        p.freq = 'ponctuel'; p.date = dateIso;
+      } else {
+        var j = parseInt(dernier, 10);
+        if (j >= 1 && j <= 31) { p.freq = 'mensuel'; p.jour = j; }
+        else { erreurs++; return; }
+      }
+      etat.paiements.push(p); ok++;
+    });
+    return { ok: ok, erreurs: erreurs };
+  }
+
+  /* ---------- EXPORT ---------- */
+  document.getElementById('btnExport').addEventListener('click', function () {
+    var lignes = ['nom;montant;compte;jour_ou_date;categorie;frequence;mode'];
+    etat.paiements.forEach(function (p) {
+      var quand = p.freq === 'mensuel' ? p.jour : (p.freq === 'hebdo' ? JOURS_SEM[Number(p.jourSemaine)] : p.date);
+      lignes.push([p.nom, p.montant, p.compte, quand, cat(p.cat).nom, p.freq, p.mode === 'manuel' ? 'manuel' : 'auto'].join(';'));
+    });
+    var blob = new Blob(['﻿' + lignes.join('\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'mes-prelevements.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  /* ---------- EFFACER ---------- */
+  document.getElementById('btnEffacer').addEventListener('click', function () {
+    if (confirm('Effacer TOUS les paiements enregistrés ? Cette action est définitive.')) {
+      etat.paiements = []; sauver();
+      etat.faits = {}; sauverFaits();
+      toutRendre();
+      alert('Données effacées.');
+    }
+  });
+
+  function echap(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  afficherVue('jours');
+
+  /* ---------- PWA : fonctionnement hors ligne ---------- */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js').catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
