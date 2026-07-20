@@ -347,6 +347,11 @@
     <div id="dettesContenu"></div>
   </section>
 
+  <!-- VUE OBJECTIFS -->
+  <section id="vue-objectifs" class="cache">
+    <div id="objectifsContenu"></div>
+  </section>
+
   <!-- VUE PAIEMENTS -->
   <section id="vue-paiements" class="cache">
     <div id="listePaiements"></div>
@@ -380,6 +385,8 @@
     <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>Stats</button>
   <button data-vue="dettes">
     <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg>Dettes</button>
+  <button data-vue="objectifs">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/></svg>Objectifs</button>
   <button data-vue="paiements">
     <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>Paiements</button>
 </nav>
@@ -451,6 +458,47 @@
     </div>
     <button class="btn" id="btnEnregistrer">Enregistrer</button>
     <button class="btn btn-sec" id="btnAnnuler">Annuler</button>
+  </div>
+</div>
+
+<!-- MODALE OBJECTIF -->
+<div class="modale" id="modaleObjectif">
+  <div class="contenu">
+    <div class="poignee"></div>
+    <h2 id="titreModaleObjectif">Nouvel objectif</h2>
+    <div class="form-groupe">
+      <label for="oNom">Nom de l'objectif</label>
+      <input id="oNom" placeholder="Ex : Voyage, Fonds d'urgence, Nouvelle voiture…">
+    </div>
+    <div class="form-groupe">
+      <label for="oCible">Montant à atteindre ($)</label>
+      <input id="oCible" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Ex : 5000">
+    </div>
+    <div class="form-groupe">
+      <label for="oDispo">Montant disponible ($) — facultatif</label>
+      <input id="oDispo" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Ex : 800">
+      <p class="aide">L'argent que tu as sous la main en ce moment pour cet objectif. Tu peux le mettre à jour à tout moment en modifiant l'objectif.</p>
+    </div>
+    <button class="btn" id="btnEnregistrerObjectif">Enregistrer</button>
+    <button class="btn btn-sec" id="btnAnnulerObjectif">Annuler</button>
+  </div>
+</div>
+
+<!-- MODALE VERSEMENT -->
+<div class="modale" id="modaleVersement">
+  <div class="contenu">
+    <div class="poignee"></div>
+    <h2 id="titreModaleVersement">Ajouter un versement</h2>
+    <div class="form-groupe">
+      <label for="vMontant">Montant versé ($)</label>
+      <input id="vMontant" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Ex : 200">
+    </div>
+    <div class="form-groupe">
+      <label for="vDate">Date du versement</label>
+      <input id="vDate" type="date">
+    </div>
+    <button class="btn" id="btnEnregistrerVersement">Enregistrer</button>
+    <button class="btn btn-sec" id="btnAnnulerVersement">Annuler</button>
   </div>
 </div>
 
@@ -555,6 +603,17 @@
     } catch (e) { return []; }
   }
   function sauverDettes() { localStorage.setItem(CLE_DETTES2, JSON.stringify(etat.dettes)); }
+  var CLE_OBJ = 'mes-objectifs-v1';
+  etat.objectifs = (function () {
+    try { return JSON.parse(localStorage.getItem(CLE_OBJ)) || []; }
+    catch (e) { return []; }
+  })();
+  etat.editionObjectifId = null;
+  etat.versementPour = null;
+  function sauverObjectifs() { localStorage.setItem(CLE_OBJ, JSON.stringify(etat.objectifs)); }
+  function payeDe(o) {
+    return (o.versements || []).reduce(function (s, v) { return s + Number(v.montant); }, 0);
+  }
   var CLE_LIMITES = 'mes-dettes-limites';
   etat.limites = (function () {
     try { return JSON.parse(localStorage.getItem(CLE_LIMITES)) || {}; }
@@ -761,6 +820,20 @@
       } else {
         note.textContent = 'Premier mois enregistré' + suffixe;
       }
+      return;
+    }
+    if (etat.vue === 'objectifs') {
+      var totCible = 0, totPaye = 0;
+      etat.objectifs.forEach(function (o) { totCible += Number(o.cible); totPaye += payeDe(o); });
+      lib.textContent = 'Mes objectifs';
+      if (etat.objectifs.length === 0) {
+        chi.textContent = fmtMontant(0);
+        note.textContent = 'Aucun objectif — appuie sur + pour en créer un';
+        return;
+      }
+      chi.textContent = fmtMontant(totPaye) + ' / ' + fmtMontant(totCible);
+      var pctO = totCible > 0 ? Math.round(totPaye / totCible * 100) : 0;
+      note.textContent = pctO + ' % atteints · ' + etat.objectifs.length + ' objectif' + (etat.objectifs.length > 1 ? 's' : '');
       return;
     }
     var duJour = etat.paiements.filter(function (p) { return tombeLe(p, auj); });
@@ -1116,6 +1189,137 @@
     conteneur.innerHTML = html;
   }
 
+  /* ---------- VUE OBJECTIFS ---------- */
+  function rendreObjectifs() {
+    var conteneur = document.getElementById('objectifsContenu');
+    if (etat.objectifs.length === 0) {
+      conteneur.innerHTML = '<div class="vide"><span class="emoji">🎯</span>Aucun objectif pour le moment.<br>Appuie sur <b>+</b> pour créer ton premier objectif :<br>un voyage, un fonds d\'urgence, un achat important…</div>';
+      return;
+    }
+    var html = '';
+    etat.objectifs.forEach(function (o) {
+      var paye = payeDe(o);
+      var cible = Number(o.cible);
+      var reste = Math.max(0, cible - paye);
+      var pct = cible > 0 ? Math.min(100, Math.round(paye / cible * 100)) : 0;
+      var atteint = paye >= cible && cible > 0;
+      var coul = couleurDe(o.nom);
+      var versements = (o.versements || []).slice().sort(function (a, b) { return b.date.localeCompare(a.date); });
+      var vHtml = '';
+      versements.slice(0, 4).forEach(function (v) {
+        vHtml += '<div class="ligne"><div class="jour-mvt">' + Number(v.date.slice(8, 10)) + '</div>' +
+          '<div class="infos"><div class="nom">💚 Versement</div>' +
+          '<div class="compte">' + dateLocale(v.date).toLocaleDateString('fr-FR') + '</div></div>' +
+          '<span class="montant" style="color:var(--vert)">+' + fmtMontant(v.montant) + '</span>' +
+          '<div class="actions"><button data-vsuppr="' + o.id + '|' + v.id + '" title="Supprimer">🗑️</button></div></div>';
+      });
+      html += '<div class="carte compte-carte"><div class="barre" style="background:' + coul + '"></div>' +
+        '<div class="tete"><div class="nom-compte">' +
+        '<div class="avatar" style="width:36px;height:36px;font-size:15px;background:linear-gradient(135deg,' + coul + ',' + coul + 'cc)">🎯</div>' +
+        '<span class="txt">' + echap(o.nom) + '</span></div>' +
+        '<div class="total-compte">' + pct + ' %</div></div>' +
+        '<div class="jauge"><div style="width:' + pct + '%;background:' + (atteint ? 'var(--vert)' : coul) + '"></div></div>' +
+        (atteint ? '<span class="tag-30 ok" style="margin-top:8px">🎉 Objectif atteint ! Félicitations</span>' : '') +
+        '<div class="detail" style="margin-top:10px"><span>À atteindre</span><span style="font-weight:800;color:var(--texte)">' + fmtMontant(cible) + '</span></div>' +
+        '<div class="detail"><span>Déjà payé</span><span style="font-weight:800;color:var(--vert)">' + fmtMontant(paye) + '</span></div>' +
+        (o.dispo > 0 ? '<div class="detail"><span>Montant disponible</span><span style="font-weight:800;color:var(--accent)">' + fmtMontant(o.dispo) + '</span></div>' : '') +
+        '<div class="detail"><span>Reste à payer</span><span style="font-weight:800;color:var(--rouge)">' + fmtMontant(reste) + '</span></div>' +
+        (vHtml ? '<div class="lignes" style="margin-top:10px"><div class="sous-carte" style="margin:0 0 2px">Derniers versements</div>' + vHtml + '</div>' : '') +
+        '<div style="display:flex;gap:8px;margin-top:12px">' +
+        '<button class="btn" style="padding:11px;font-size:14px" data-overs="' + o.id + '">💚 Ajouter un versement</button>' +
+        '<button class="btn btn-sec" style="width:52px;flex:none;padding:11px" data-omodif="' + o.id + '" title="Modifier">✏️</button>' +
+        '<button class="btn btn-danger" style="width:52px;flex:none;padding:11px" data-osuppr="' + o.id + '" title="Supprimer">🗑️</button>' +
+        '</div></div>';
+    });
+    conteneur.innerHTML = html;
+  }
+
+  /* ---------- MODALES OBJECTIF / VERSEMENT ---------- */
+  var modaleObjectif = document.getElementById('modaleObjectif');
+  var modaleVersement = document.getElementById('modaleVersement');
+  function ouvrirModaleObjectif(o) {
+    etat.editionObjectifId = o ? o.id : null;
+    document.getElementById('titreModaleObjectif').textContent = o ? 'Modifier l\'objectif' : 'Nouvel objectif';
+    document.getElementById('oNom').value = o ? o.nom : '';
+    document.getElementById('oCible').value = o ? o.cible : '';
+    document.getElementById('oDispo').value = (o && o.dispo > 0) ? o.dispo : '';
+    modaleObjectif.classList.add('ouverte');
+  }
+  function fermerModaleObjectif() { modaleObjectif.classList.remove('ouverte'); }
+  document.getElementById('btnAnnulerObjectif').addEventListener('click', fermerModaleObjectif);
+  modaleObjectif.addEventListener('click', function (e) { if (e.target === modaleObjectif) fermerModaleObjectif(); });
+  document.getElementById('btnEnregistrerObjectif').addEventListener('click', function () {
+    var nom = document.getElementById('oNom').value.trim();
+    var cible = parseFloat(document.getElementById('oCible').value);
+    var dispo = parseFloat(document.getElementById('oDispo').value);
+    if (!nom) return alert('Donne un nom à ton objectif.');
+    if (!(cible > 0)) return alert('Indique le montant à atteindre.');
+    if (etat.editionObjectifId) {
+      etat.objectifs = etat.objectifs.map(function (o) {
+        if (o.id !== etat.editionObjectifId) return o;
+        return { id: o.id, nom: nom, cible: cible, dispo: dispo > 0 ? dispo : 0, versements: o.versements || [] };
+      });
+    } else {
+      etat.objectifs.push({ id: uid(), nom: nom, cible: cible, dispo: dispo > 0 ? dispo : 0, versements: [] });
+    }
+    sauverObjectifs(); fermerModaleObjectif(); toutRendre();
+  });
+
+  function ouvrirModaleVersement(o) {
+    etat.versementPour = o.id;
+    document.getElementById('titreModaleVersement').textContent = 'Versement — ' + o.nom;
+    document.getElementById('vMontant').value = '';
+    document.getElementById('vDate').value = isoDate(auj);
+    modaleVersement.classList.add('ouverte');
+  }
+  function fermerModaleVersement() { modaleVersement.classList.remove('ouverte'); }
+  document.getElementById('btnAnnulerVersement').addEventListener('click', fermerModaleVersement);
+  modaleVersement.addEventListener('click', function (e) { if (e.target === modaleVersement) fermerModaleVersement(); });
+  document.getElementById('btnEnregistrerVersement').addEventListener('click', function () {
+    var montant = parseFloat(document.getElementById('vMontant').value);
+    var date = document.getElementById('vDate').value;
+    if (!(montant > 0)) return alert('Indique le montant versé.');
+    if (!date) return alert('Choisis la date du versement.');
+    etat.objectifs = etat.objectifs.map(function (o) {
+      if (o.id !== etat.versementPour) return o;
+      o.versements = o.versements || [];
+      o.versements.push({ id: uid(), date: date, montant: montant });
+      return o;
+    });
+    sauverObjectifs(); fermerModaleVersement(); toutRendre();
+  });
+
+  document.getElementById('vue-objectifs').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.overs) {
+      var o1 = etat.objectifs.find(function (o) { return o.id === b.dataset.overs; });
+      if (o1) ouvrirModaleVersement(o1);
+    }
+    if (b.dataset.omodif) {
+      var o2 = etat.objectifs.find(function (o) { return o.id === b.dataset.omodif; });
+      if (o2) ouvrirModaleObjectif(o2);
+    }
+    if (b.dataset.osuppr) {
+      var o3 = etat.objectifs.find(function (o) { return o.id === b.dataset.osuppr; });
+      if (o3 && confirm('Supprimer l\'objectif « ' + o3.nom + ' » et tous ses versements ?')) {
+        etat.objectifs = etat.objectifs.filter(function (o) { return o.id !== o3.id; });
+        sauverObjectifs(); toutRendre();
+      }
+    }
+    if (b.dataset.vsuppr) {
+      var t = b.dataset.vsuppr.split('|');
+      if (confirm('Supprimer ce versement ?')) {
+        etat.objectifs = etat.objectifs.map(function (o) {
+          if (o.id !== t[0]) return o;
+          o.versements = (o.versements || []).filter(function (v) { return v.id !== t[1]; });
+          return o;
+        });
+        sauverObjectifs(); toutRendre();
+      }
+    }
+  });
+
   /* ---------- VUE PAIEMENTS ---------- */
   function rendrePaiements() {
     var liste = document.getElementById('listePaiements');
@@ -1149,11 +1353,12 @@
     comptes: 'Total à prélever par compte bancaire',
     stats: 'Mes statistiques de dépenses',
     dettes: 'Soldes, remboursements et achats de mes cartes',
+    objectifs: 'Mes objectifs personnalisés d\'épargne et de paiement',
     paiements: 'Tous mes paiements enregistrés'
   };
   function afficherVue(nom) {
     etat.vue = nom;
-    ['jours','comptes','stats','dettes','paiements'].forEach(function (v) {
+    ['jours','comptes','stats','dettes','objectifs','paiements'].forEach(function (v) {
       document.getElementById('vue-' + v).classList.toggle('cache', v !== nom);
     });
     document.querySelectorAll('nav button').forEach(function (b) {
@@ -1161,7 +1366,7 @@
     });
     document.getElementById('sousTitre').textContent = sousTitres[nom];
     document.getElementById('btnAjouter').style.display =
-      (nom === 'jours' || nom === 'paiements' || nom === 'dettes') ? 'block' : 'none';
+      (nom === 'jours' || nom === 'paiements' || nom === 'dettes' || nom === 'objectifs') ? 'block' : 'none';
     toutRendre();
   }
   function majBadgeVital() {
@@ -1182,6 +1387,7 @@
     if (etat.vue === 'comptes') rendreComptes();
     if (etat.vue === 'stats') rendreStats();
     if (etat.vue === 'dettes') rendreDettes();
+    if (etat.vue === 'objectifs') rendreObjectifs();
     if (etat.vue === 'paiements') rendrePaiements();
   }
   document.querySelectorAll('nav button').forEach(function (b) {
@@ -1243,6 +1449,7 @@
   document.getElementById('fFreq').addEventListener('change', majChampsFreq);
   document.getElementById('btnAjouter').addEventListener('click', function () {
     if (etat.vue === 'dettes') ouvrirModaleDette(null);
+    else if (etat.vue === 'objectifs') ouvrirModaleObjectif(null);
     else ouvrirModale(null);
   });
   document.getElementById('btnAnnuler').addEventListener('click', fermerModale);
