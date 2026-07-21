@@ -126,6 +126,16 @@
   .compte { font-size: 12px; color: var(--texte-2); margin-top: 1px; }
   .montant { font-weight: 700; font-size: 14.5px; white-space: nowrap; }
 
+  .seg {
+    display: flex; background: var(--carte); border-radius: 16px; padding: 5px;
+    box-shadow: var(--ombre); margin-bottom: 12px; gap: 4px;
+  }
+  .seg button {
+    flex: 1; border: none; background: none; padding: 9px 6px; border-radius: 12px;
+    font-size: 13px; font-weight: 700; color: var(--texte-2); cursor: pointer; transition: all .15s;
+  }
+  .seg button.actif { background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff; }
+
   .vide { text-align: center; color: var(--texte-2); padding: 48px 20px; font-size: 14.5px; line-height: 1.7; }
   .vide .emoji { font-size: 44px; display: block; margin-bottom: 10px; }
 
@@ -324,8 +334,15 @@
 </div>
 
 <main>
-  <!-- VUE JOURS -->
-  <section id="vue-jours"></section>
+  <!-- VUE AGENDA -->
+  <section id="vue-jours">
+    <div class="seg" id="segAgenda">
+      <button data-mode="jour" class="actif">Jour</button>
+      <button data-mode="semaine">Semaine</button>
+      <button data-mode="apercu">Aperçu</button>
+    </div>
+    <div id="agendaContenu"></div>
+  </section>
 
   <!-- VUE COMPTES -->
   <section id="vue-comptes" class="cache">
@@ -378,7 +395,7 @@
 
 <nav>
   <button data-vue="jours" class="actif">
-    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Jours</button>
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Agenda</button>
   <button data-vue="comptes">
     <svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6"/></svg>Comptes</button>
   <button data-vue="stats">
@@ -866,15 +883,36 @@
     return t;
   }
 
-  /* ---------- VUE JOURS ---------- */
+  /* ---------- VUE AGENDA ---------- */
+  function lignePrel(p, iso, avecDate, d) {
+    var manuel = p.mode === 'manuel';
+    var fait = manuel && etat.faits[p.id + '|' + iso];
+    return '<div class="ligne' + (fait ? ' fait' : '') + '">' + avatarHtml(p) +
+      '<div class="infos"><div class="nom">' + echap(p.nom) +
+      (manuel ? '<span class="tag-manuel">✋ Moi-même</span>' : '') + '</div>' +
+      '<div class="compte">' + (avecDate ? '📅 ' + d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' : '') + '🏦 ' + echap(p.compte) + '</div></div>' +
+      '<div class="montant">' + fmtMontant(p.montant) + '</div>' +
+      (manuel ? '<button class="btn-fait' + (fait ? ' ok' : '') + '" data-fait="' + p.id + '|' + iso + '" title="Marquer comme fait">' + (fait ? '✓' : '') + '</button>' : '') +
+      '</div>';
+  }
+
   function rendreJours() {
-    var conteneur = document.getElementById('vue-jours');
+    var conteneur = document.getElementById('agendaContenu');
+    document.querySelectorAll('#segAgenda button').forEach(function (b) {
+      b.classList.toggle('actif', b.dataset.mode === etat.modeAgenda);
+    });
     conteneur.innerHTML = '';
     if (etat.paiements.length === 0) {
       conteneur.innerHTML = '<div class="vide"><span class="emoji">🗓️</span>Aucun paiement enregistré.<br>Appuie sur <b>+</b> pour ajouter ton premier prélèvement,<br>ou importe un fichier CSV dans l\'onglet « Paiements ».</div>';
       return;
     }
-    var rien = true;
+    if (etat.modeAgenda === 'semaine') return rendreAgendaSemaine(conteneur);
+    if (etat.modeAgenda === 'apercu') return rendreAgendaApercu(conteneur);
+    rendreAgendaJour(conteneur);
+  }
+
+  function rendreAgendaJour(conteneur) {
+    var rien = true, html = '';
     for (var i = 0; i < 62; i++) {
       var d = new Date(auj); d.setDate(auj.getDate() + i);
       var duJour = etat.paiements.filter(function (p) { return tombeLe(p, d); });
@@ -882,9 +920,7 @@
       rien = false;
       var total = duJour.reduce(function (s, p) { return s + Number(p.montant); }, 0);
       var estAuj = memeJour(d, auj);
-      var carte = document.createElement('div');
-      carte.className = 'carte';
-      var html = '<div class="jour-tete"><div class="jour-date">' +
+      html += '<div class="carte"><div class="jour-tete"><div class="jour-date">' +
         '<div class="pastille-date' + (estAuj ? ' auj' : '') + '">' +
           '<span class="num">' + d.getDate() + '</span>' +
           '<span class="mois">' + d.toLocaleDateString('fr-FR', { month: 'short' }).replace('.','') + '</span></div>' +
@@ -892,24 +928,86 @@
         '<div class="jour-sous">' + duJour.length + ' prélèvement' + (duJour.length > 1 ? 's' : '') + '</div></div></div>' +
         '<div class="jour-total">−' + fmtMontant(total) + '</div></div><div class="lignes">';
       var iso = isoDate(d);
-      duJour.forEach(function (p) {
-        var manuel = p.mode === 'manuel';
-        var fait = manuel && etat.faits[p.id + '|' + iso];
-        html += '<div class="ligne' + (fait ? ' fait' : '') + '">' + avatarHtml(p) +
-          '<div class="infos"><div class="nom">' + echap(p.nom) +
-          (manuel ? '<span class="tag-manuel">✋ Moi-même</span>' : '') + '</div>' +
-          '<div class="compte">🏦 ' + echap(p.compte) + '</div></div>' +
-          '<div class="montant">' + fmtMontant(p.montant) + '</div>' +
-          (manuel ? '<button class="btn-fait' + (fait ? ' ok' : '') + '" data-fait="' + p.id + '|' + iso + '" title="Marquer comme fait">' + (fait ? '✓' : '') + '</button>' : '') +
-          '</div>';
-      });
-      html += '</div>';
-      carte.innerHTML = html;
-      conteneur.appendChild(carte);
+      duJour.forEach(function (p) { html += lignePrel(p, iso, false, d); });
+      html += '</div></div>';
     }
-    if (rien) {
-      conteneur.innerHTML = '<div class="vide"><span class="emoji">🎉</span>Aucun prélèvement prévu dans les 60 prochains jours.</div>';
+    conteneur.innerHTML = rien
+      ? '<div class="vide"><span class="emoji">🎉</span>Aucun prélèvement prévu dans les 60 prochains jours.</div>'
+      : html;
+  }
+
+  function rendreAgendaSemaine(conteneur) {
+    var html = '', rien = true;
+    var lundi = new Date(auj);
+    lundi.setDate(auj.getDate() - ((auj.getDay() + 6) % 7));
+    for (var s = 0; s < 9; s++) {
+      var deb = new Date(lundi); deb.setDate(lundi.getDate() + s * 7);
+      var fin = new Date(deb); fin.setDate(deb.getDate() + 6);
+      var occ = [];
+      for (var i = 0; i < 7; i++) {
+        var d = new Date(deb); d.setDate(deb.getDate() + i);
+        if (d.getTime() < auj.getTime()) continue;
+        etat.paiements.forEach(function (p) { if (tombeLe(p, d)) occ.push({ p: p, d: new Date(d.getTime()) }); });
+      }
+      if (occ.length === 0) continue;
+      rien = false;
+      var total = occ.reduce(function (t, o) { return t + Number(o.p.montant); }, 0);
+      var titre = s === 0 ? 'Cette semaine' : s === 1 ? 'Semaine prochaine'
+        : 'Semaine du ' + deb.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      html += '<div class="carte"><div class="jour-tete"><div class="jour-date">' +
+        '<div class="pastille-date' + (s === 0 ? ' auj' : '') + '"><span class="num">' + deb.getDate() + '</span>' +
+        '<span class="mois">' + deb.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '') + '</span></div>' +
+        '<div><div class="jour-nom">' + titre + '</div>' +
+        '<div class="jour-sous">Du ' + deb.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' au ' + fin.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' · ' + occ.length + ' prélèvement' + (occ.length > 1 ? 's' : '') + '</div></div></div>' +
+        '<div class="jour-total">−' + fmtMontant(total) + '</div></div><div class="lignes">';
+      occ.forEach(function (o) { html += lignePrel(o.p, isoDate(o.d), true, o.d); });
+      html += '</div></div>';
     }
+    conteneur.innerHTML = rien
+      ? '<div class="vide"><span class="emoji">🎉</span>Aucun prélèvement prévu dans les 9 prochaines semaines.</div>'
+      : html;
+  }
+
+  function rendreAgendaApercu(conteneur) {
+    function totalSur(nb) {
+      var t = 0, n = 0;
+      for (var i = 0; i < nb; i++) {
+        var d = new Date(auj); d.setDate(auj.getDate() + i);
+        etat.paiements.forEach(function (p) { if (tombeLe(p, d)) { t += Number(p.montant); n++; } });
+      }
+      return { t: t, n: n };
+    }
+    var j7 = totalSur(7), j30 = totalSur(30);
+    var resteMois = 0;
+    var nbJM = joursDansMois(auj.getFullYear(), auj.getMonth());
+    for (var j = auj.getDate(); j <= nbJM; j++) {
+      var dj = new Date(auj.getFullYear(), auj.getMonth(), j);
+      etat.paiements.forEach(function (p) { if (tombeLe(p, dj)) resteMois += Number(p.montant); });
+    }
+    var html = '<div class="carte"><div class="titre-carte"><span class="ico-carte">👁️</span>Vue générale</div>' +
+      '<div class="detail" style="margin-top:2px"><span>Aujourd\'hui</span><span style="font-weight:800;color:var(--rouge)">' + fmtMontant(totalSur(1).t) + '</span></div>' +
+      '<div class="detail"><span>7 prochains jours (' + j7.n + ' prél.)</span><span style="font-weight:800;color:var(--rouge)">' + fmtMontant(j7.t) + '</span></div>' +
+      '<div class="detail"><span>30 prochains jours (' + j30.n + ' prél.)</span><span style="font-weight:800;color:var(--rouge)">' + fmtMontant(j30.t) + '</span></div>' +
+      '<div class="detail"><span>Reste du mois de ' + auj.toLocaleDateString('fr-FR', { month: 'long' }) + '</span><span style="font-weight:800">' + fmtMontant(resteMois) + '</span></div></div>';
+    html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">📆</span>Prochains mois</div>';
+    for (var m = 0; m < 3; m++) {
+      var dm = new Date(auj.getFullYear(), auj.getMonth() + m, 1);
+      var tm = totalMois(dm.getFullYear(), dm.getMonth()).total;
+      html += '<div class="detail"><span style="text-transform:capitalize">' + dm.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) + (m === 0 ? ' (en cours)' : '') + '</span><span style="font-weight:800">' + fmtMontant(tm) + '</span></div>';
+    }
+    html += '</div>';
+    var occ = [];
+    for (var i2 = 0; i2 < 90; i2++) {
+      if (occ.length >= 8) break;
+      var d2 = new Date(auj); d2.setDate(auj.getDate() + i2);
+      etat.paiements.forEach(function (p) { if (tombeLe(p, d2)) occ.push({ p: p, d: new Date(d2.getTime()) }); });
+    }
+    if (occ.length > 0) {
+      html += '<div class="carte"><div class="titre-carte"><span class="ico-carte">⏭️</span>Prochaines échéances</div><div class="lignes" style="margin-top:0">';
+      occ.slice(0, 8).forEach(function (o) { html += lignePrel(o.p, isoDate(o.d), true, o.d); });
+      html += '</div></div>';
+    }
+    conteneur.innerHTML = html;
   }
 
   /* ---------- VUE COMPTES ---------- */
@@ -1349,7 +1447,7 @@
 
   /* ---------- NAVIGATION ---------- */
   var sousTitres = {
-    jours: 'Prélèvements des 60 prochains jours',
+    jours: 'Mon agenda de prélèvements',
     comptes: 'Total à prélever par compte bancaire',
     stats: 'Mes statistiques de dépenses',
     dettes: 'Soldes, remboursements et achats de mes cartes',
@@ -1392,6 +1490,10 @@
   }
   document.querySelectorAll('nav button').forEach(function (b) {
     b.addEventListener('click', function () { afficherVue(b.dataset.vue); });
+  });
+  etat.modeAgenda = 'jour';
+  document.querySelectorAll('#segAgenda button').forEach(function (b) {
+    b.addEventListener('click', function () { etat.modeAgenda = b.dataset.mode; rendreJours(); });
   });
 
   /* ---------- MARQUER FAIT (paiements manuels) ---------- */
